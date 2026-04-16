@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "layer": "clean",
+  "symbol": "ZN",
+  "timeframe": "15m",
+  "adjustment": "backadjusted",
+  "row_count": 369388,
+  "date_range": {
+    "start": "2010-01-03T23:30:00+00:00",
+    "end": "2026-04-10T21:00:00+00:00"
+  },
+  "sources": [
+    {
+      "path": "C:\\Trading-research\\data\\clean\\ZN_1m_backadjusted_2010-01-01_2026-04-11.parquet",
+      "built_at": "2026-04-14T01:04:18.729759+00:00",
+      "row_count": 4673993
+    }
+  ],
+  "parameters": {
+    "freq": "15min"
+  },
+  "built_at": "2026-04-14T01:04:31.253031+00:00",
+  "backfilled": true,
+  "code_commit": "unknown"
+}

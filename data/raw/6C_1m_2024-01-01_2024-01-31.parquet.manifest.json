@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "layer": "raw",
+  "symbol": "6C",
+  "raw_type": "bulk_download",
+  "description": "Full historical bulk download. Backfilled manifest.",
+  "row_count": 27508,
+  "date_range": {
+    "start": "2024-01-01T23:01:00+00:00",
+    "end": "2024-02-01T00:00:00+00:00"
+  },
+  "sources": [],
+  "parameters": {
+    "source": "TradeStation API"
+  },
+  "built_at": "2026-04-13T20:29:17.405292+00:00",
+  "backfilled": true,
+  "code_commit": "unknown"
+}

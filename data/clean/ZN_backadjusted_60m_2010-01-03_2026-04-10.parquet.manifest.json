@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "layer": "clean",
+  "symbol": "ZN",
+  "timeframe": "60m",
+  "adjustment": "backadjusted",
+  "row_count": 97978,
+  "date_range": {
+    "start": "2010-01-03T23:00:00+00:00",
+    "end": "2026-04-10T21:00:00+00:00"
+  },
+  "sources": [
+    {
+      "path": "data\\clean\\ZN_1m_backadjusted_2010-01-01_2026-04-11.parquet",
+      "file_hash": "5eea60c60db70a60"
+    }
+  ],
+  "parameters": {
+    "freq": "60min"
+  },
+  "built_at": "2026-04-14T14:09:32.168874+00:00",
+  "code_commit": "unknown"
+}

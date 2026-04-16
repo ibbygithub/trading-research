@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "layer": "features",
+  "symbol": "ZN",
+  "timeframe": "5m",
+  "adjustment": "backadjusted",
+  "row_count": 1064432,
+  "date_range": {
+    "start": "2010-01-03T23:30:00+00:00",
+    "end": "2026-04-10T21:00:00+00:00"
+  },
+  "sources": [
+    {
+      "path": "data\\clean\\ZN_backadjusted_5m_2010-01-03_2026-04-10.parquet",
+      "file_hash": "54c2ab2c8878535c"
+    },
+    {
+      "path": "data\\clean\\ZN_1m_backadjusted_2010-01-01_2026-04-11.parquet",
+      "file_hash": "5eea60c60db70a60"
+    },
+    {
+      "path": "data\\clean\\ZN_backadjusted_1D_2010-01-03_2026-04-09.parquet",
+      "built_at": "2026-04-14T14:10:45.798962+00:00",
+      "row_count": 4203
+    }
+  ],
+  "feature_set_tag": "base-v1",
+  "feature_set_config": "C:\\Trading-research\\configs\\featuresets\\base-v1.yaml",
+  "indicators": [
+    {
+      "name": "atr",
+      "period": 14
+    },
+    {
+      "name": "rsi",
+      "period": 14
+    },
+    {
+      "name": "bollinger",
+      "period": 20,
+      "num_std": 2.0
+    },
+    {
+      "name": "macd",
+      "fast": 12,
+      "slow": 26,
+      "signal": 9,
+      "derived": [
+        "hist_above_zero",
+        "hist_slope",
+        "bars_since_zero_cross",
+        "hist_decline_streak"
+      ]
+    },
+    {
+      "name": "sma",
+      "period": 200
+    },
+    {
+      "name": "donchian",
+      "period": 20
+    },
+    {
+      "name": "adx",
+      "period": 14
+    },
+    {
+      "name": "ofi",
+      "period": 14
+    },
+    {
+      "name": "vwap_session"
+    },
+    {
+      "name": "vwap_weekly"
+    },
+    {
+      "name": "vwap_monthly"
+    }
+  ],
+  "htf_projections": [
+    {
+      "source_tf": "1D",
+      "shift": 1,
+      "columns": [
+        {
+          "name": "daily_ema_20",
+          "indicator": "ema",
+          "period": 20
+        },
+        {
+          "name": "daily_ema_50",
+          "indicator": "ema",
+          "period": 50
+        },
+        {
+          "name": "daily_ema_200",
+          "indicator": "ema",
+          "period": 200
+        },
+        {
+          "name": "daily_sma_200",
+          "indicator": "sma",
+          "period": 200
+        },
+        {
+          "name": "daily_atr_14",
+          "indicator": "atr",
+          "period": 14
+        },
+        {
+          "name": "daily_adx_14",
+          "indicator": "adx",
+          "period": 14
+        },
+        {
+          "name": "daily_macd_hist",
+          "indicator": "macd_hist",
+          "fast": 12,
+          "slow": 26,
+          "signal": 9
+        }
+      ]
+    }
+  ],
+  "built_at": "2026-04-14T14:16:01.915673+00:00",
+  "code_commit": "unknown"
+}

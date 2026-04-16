@@ -1,0 +1,351 @@
+{
+  "schema_version": 1,
+  "layer": "clean",
+  "symbol": "ZN",
+  "timeframe": "1m",
+  "adjustment": "backadjusted",
+  "row_count": 4673993,
+  "date_range": {
+    "start": "2010-01-03T23:31:00+00:00",
+    "end": "2026-04-10T21:00:00+00:00"
+  },
+  "sources": [
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH10_1m_2010-01-01_2010-03-12.parquet",
+      "built_at": "2026-04-13T22:17:50.029365+00:00",
+      "row_count": 49345
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH11_1m_2010-12-15_2011-03-14.parquet",
+      "built_at": "2026-04-13T22:20:06.556462+00:00",
+      "row_count": 68041
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH12_1m_2011-12-14_2012-03-13.parquet",
+      "built_at": "2026-04-13T22:22:16.088921+00:00",
+      "row_count": 65950
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH13_1m_2012-12-13_2013-03-12.parquet",
+      "built_at": "2026-04-13T22:24:27.793426+00:00",
+      "row_count": 65382
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH14_1m_2013-12-13_2014-03-12.parquet",
+      "built_at": "2026-04-13T22:26:37.519822+00:00",
+      "row_count": 64919
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH15_1m_2014-12-15_2015-03-12.parquet",
+      "built_at": "2026-04-13T22:28:42.820690+00:00",
+      "row_count": 67136
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH16_1m_2015-12-15_2016-03-14.parquet",
+      "built_at": "2026-04-13T22:30:56.000806+00:00",
+      "row_count": 70860
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH17_1m_2016-12-14_2017-03-14.parquet",
+      "built_at": "2026-04-13T22:33:04.231945+00:00",
+      "row_count": 69923
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH18_1m_2017-12-13_2018-03-13.parquet",
+      "built_at": "2026-04-13T22:35:13.811327+00:00",
+      "row_count": 69943
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH19_1m_2018-12-13_2019-03-12.parquet",
+      "built_at": "2026-04-13T22:37:27.911137+00:00",
+      "row_count": 68391
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH20_1m_2019-12-13_2020-03-12.parquet",
+      "built_at": "2026-04-13T22:39:43.231903+00:00",
+      "row_count": 73618
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH21_1m_2020-12-15_2021-03-12.parquet",
+      "built_at": "2026-04-13T22:41:52.846323+00:00",
+      "row_count": 68932
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH22_1m_2021-12-15_2022-03-14.parquet",
+      "built_at": "2026-04-13T22:44:04.827228+00:00",
+      "row_count": 72166
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH23_1m_2022-12-14_2023-03-14.parquet",
+      "built_at": "2026-04-13T22:46:21.459813+00:00",
+      "row_count": 71009
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH24_1m_2023-12-13_2024-03-12.parquet",
+      "built_at": "2026-04-13T22:48:35.668250+00:00",
+      "row_count": 71855
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH25_1m_2024-12-13_2025-03-12.parquet",
+      "built_at": "2026-04-13T22:50:54.834845+00:00",
+      "row_count": 70053
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYH26_1m_2025-12-15_2026-03-12.parquet",
+      "built_at": "2026-04-13T22:53:10.250052+00:00",
+      "row_count": 69162
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM10_1m_2010-03-15_2010-06-11.parquet",
+      "built_at": "2026-04-13T22:18:23.397882+00:00",
+      "row_count": 68257
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM11_1m_2011-03-15_2011-06-13.parquet",
+      "built_at": "2026-04-13T22:20:38.836959+00:00",
+      "row_count": 70253
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM12_1m_2012-03-14_2012-06-12.parquet",
+      "built_at": "2026-04-13T22:22:50.104708+00:00",
+      "row_count": 72217
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM13_1m_2013-03-13_2013-06-11.parquet",
+      "built_at": "2026-04-13T22:25:02.803573+00:00",
+      "row_count": 70606
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM14_1m_2014-03-13_2014-06-11.parquet",
+      "built_at": "2026-04-13T22:27:09.269683+00:00",
+      "row_count": 67340
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM15_1m_2015-03-13_2015-06-11.parquet",
+      "built_at": "2026-04-13T22:29:14.829422+00:00",
+      "row_count": 70300
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM16_1m_2016-03-15_2016-06-13.parquet",
+      "built_at": "2026-04-13T22:31:27.283345+00:00",
+      "row_count": 70422
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM17_1m_2017-03-15_2017-06-13.parquet",
+      "built_at": "2026-04-13T22:33:35.594732+00:00",
+      "row_count": 70674
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM18_1m_2018-03-14_2018-06-12.parquet",
+      "built_at": "2026-04-13T22:35:49.251865+00:00",
+      "row_count": 72781
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM19_1m_2019-03-13_2019-06-11.parquet",
+      "built_at": "2026-04-13T22:38:01.998478+00:00",
+      "row_count": 73592
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM20_1m_2020-03-13_2020-06-11.parquet",
+      "built_at": "2026-04-13T22:40:16.342763+00:00",
+      "row_count": 72745
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM21_1m_2021-03-15_2021-06-11.parquet",
+      "built_at": "2026-04-13T22:42:24.743309+00:00",
+      "row_count": 73353
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM22_1m_2022-03-15_2022-06-13.parquet",
+      "built_at": "2026-04-13T22:44:38.133708+00:00",
+      "row_count": 75302
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM23_1m_2023-03-15_2023-06-13.parquet",
+      "built_at": "2026-04-13T22:46:56.177177+00:00",
+      "row_count": 74319
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM24_1m_2024-03-13_2024-06-11.parquet",
+      "built_at": "2026-04-13T22:49:13.935584+00:00",
+      "row_count": 74085
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM25_1m_2025-03-13_2025-06-11.parquet",
+      "built_at": "2026-04-13T22:51:30.769835+00:00",
+      "row_count": 72589
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYM26_1m_2026-03-13_2026-04-11.parquet",
+      "built_at": "2026-04-14T01:04:12.543087+00:00",
+      "row_count": 26644
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU10_1m_2010-06-14_2010-09-13.parquet",
+      "built_at": "2026-04-13T22:18:58.869569+00:00",
+      "row_count": 71756
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU11_1m_2011-06-14_2011-09-13.parquet",
+      "built_at": "2026-04-13T22:21:11.840811+00:00",
+      "row_count": 74229
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU12_1m_2012-06-13_2012-09-11.parquet",
+      "built_at": "2026-04-13T22:23:22.862324+00:00",
+      "row_count": 72059
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU13_1m_2013-06-12_2013-09-11.parquet",
+      "built_at": "2026-04-13T22:25:35.443985+00:00",
+      "row_count": 73180
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU14_1m_2014-06-12_2014-09-11.parquet",
+      "built_at": "2026-04-13T22:27:40.994289+00:00",
+      "row_count": 69845
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU15_1m_2015-06-12_2015-09-11.parquet",
+      "built_at": "2026-04-13T22:29:48.711159+00:00",
+      "row_count": 75474
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU16_1m_2016-06-14_2016-09-13.parquet",
+      "built_at": "2026-04-13T22:32:00.504669+00:00",
+      "row_count": 73893
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU17_1m_2017-06-14_2017-09-12.parquet",
+      "built_at": "2026-04-13T22:34:09.274207+00:00",
+      "row_count": 71781
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU18_1m_2018-06-13_2018-09-11.parquet",
+      "built_at": "2026-04-13T22:36:20.839970+00:00",
+      "row_count": 71376
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU19_1m_2019-06-12_2019-09-11.parquet",
+      "built_at": "2026-04-13T22:38:35.398134+00:00",
+      "row_count": 76224
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU20_1m_2020-06-12_2020-09-11.parquet",
+      "built_at": "2026-04-13T22:40:50.040882+00:00",
+      "row_count": 73767
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU21_1m_2021-06-14_2021-09-13.parquet",
+      "built_at": "2026-04-13T22:42:58.714586+00:00",
+      "row_count": 76380
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU22_1m_2022-06-14_2022-09-13.parquet",
+      "built_at": "2026-04-13T22:45:13.375128+00:00",
+      "row_count": 78142
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU23_1m_2023-06-14_2023-09-12.parquet",
+      "built_at": "2026-04-13T22:47:29.846995+00:00",
+      "row_count": 74042
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU24_1m_2024-06-12_2024-09-11.parquet",
+      "built_at": "2026-04-13T22:49:50.166943+00:00",
+      "row_count": 73979
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYU25_1m_2025-06-12_2025-09-11.parquet",
+      "built_at": "2026-04-13T22:52:05.474243+00:00",
+      "row_count": 70967
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ10_1m_2010-09-14_2010-12-14.parquet",
+      "built_at": "2026-04-13T22:19:35.294988+00:00",
+      "row_count": 71298
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ11_1m_2011-09-14_2011-12-13.parquet",
+      "built_at": "2026-04-13T22:21:45.726805+00:00",
+      "row_count": 74184
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ12_1m_2012-09-12_2012-12-12.parquet",
+      "built_at": "2026-04-13T22:23:56.421835+00:00",
+      "row_count": 71480
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ13_1m_2013-09-12_2013-12-12.parquet",
+      "built_at": "2026-04-13T22:26:08.139304+00:00",
+      "row_count": 70500
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ14_1m_2014-09-12_2014-12-12.parquet",
+      "built_at": "2026-04-13T22:28:12.788360+00:00",
+      "row_count": 70001
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ15_1m_2015-09-14_2015-12-14.parquet",
+      "built_at": "2026-04-13T22:30:20.290446+00:00",
+      "row_count": 70681
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ16_1m_2016-09-14_2016-12-13.parquet",
+      "built_at": "2026-04-13T22:32:32.844758+00:00",
+      "row_count": 73216
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ17_1m_2017-09-13_2017-12-12.parquet",
+      "built_at": "2026-04-13T22:34:42.390741+00:00",
+      "row_count": 72329
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ18_1m_2018-09-12_2018-12-12.parquet",
+      "built_at": "2026-04-13T22:36:55.717636+00:00",
+      "row_count": 76322
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ19_1m_2019-09-12_2019-12-12.parquet",
+      "built_at": "2026-04-13T22:39:08.624969+00:00",
+      "row_count": 75346
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ20_1m_2020-09-14_2020-12-14.parquet",
+      "built_at": "2026-04-13T22:41:22.875207+00:00",
+      "row_count": 71265
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ21_1m_2021-09-14_2021-12-14.parquet",
+      "built_at": "2026-04-13T22:43:33.023972+00:00",
+      "row_count": 74944
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ22_1m_2022-09-14_2022-12-13.parquet",
+      "built_at": "2026-04-13T22:45:48.765221+00:00",
+      "row_count": 75682
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ23_1m_2023-09-13_2023-12-12.parquet",
+      "built_at": "2026-04-13T22:48:02.792906+00:00",
+      "row_count": 75187
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ24_1m_2024-09-12_2024-12-12.parquet",
+      "built_at": "2026-04-13T22:50:23.652755+00:00",
+      "row_count": 73566
+    },
+    {
+      "path": "C:\\Trading-research\\data\\raw\\contracts\\TYZ25_1m_2025-09-12_2025-12-12.parquet",
+      "built_at": "2026-04-13T22:52:41.218378+00:00",
+      "row_count": 68734
+    }
+  ],
+  "parameters": {
+    "method": "back_adjusted_continuous",
+    "roll_days_before": 5
+  },
+  "built_at": "2026-04-14T01:04:18.729759+00:00",
+  "backfilled": true,
+  "code_commit": "unknown"
+}

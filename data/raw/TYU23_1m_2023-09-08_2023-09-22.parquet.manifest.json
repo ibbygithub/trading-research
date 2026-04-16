@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "layer": "raw",
+  "symbol": "TYU23",
+  "raw_type": "bulk_download",
+  "description": "Full historical bulk download. Backfilled manifest.",
+  "row_count": 174,
+  "date_range": {
+    "start": "2023-09-08T00:33:00+00:00",
+    "end": "2023-09-20T15:15:00+00:00"
+  },
+  "sources": [],
+  "parameters": {
+    "source": "TradeStation API"
+  },
+  "built_at": "2026-04-13T22:05:41.770062+00:00",
+  "backfilled": true,
+  "code_commit": "unknown"
+}

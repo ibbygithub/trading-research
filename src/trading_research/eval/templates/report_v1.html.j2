@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ meta.strategy_id }} | Backtest Report | {{ meta.run_ts }}</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --yellow: #eab308;
+    --purple: #a855f7;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 24px;
+  }
+
+  h1 { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  h2 { font-size: 15px; font-weight: 600; color: #cbd5e1; margin: 28px 0 12px;
+       padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 18px 0 8px; }
+  p  { color: #94a3b8; margin-bottom: 8px; }
+
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+
+  /* Section anchor (for smoke-test id checks) */
+  .section[id]::before {
+    content: '';
+    display: block;
+    margin-top: -80px;
+    padding-top: 80px;
+  }
+
+  .header-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .header-item { display: flex; flex-direction: column; }
+  .header-item .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .header-item .value { font-family: var(--font-mono); font-size: 13px; color: #f1f5f9; }
+
+  /* Metrics table */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .metric-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .metric-card.highlight { border-color: var(--yellow); }
+  .metric-card .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .metric-card .metric-value { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: #f1f5f9; }
+  .metric-card.highlight .metric-value { color: var(--yellow); }
+
+  /* Tables */
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    margin-top: 8px;
+    overflow-x: auto;
+    display: block;
+  }
+  .report-table th {
+    background: var(--bg);
+    color: var(--muted);
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .report-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid rgba(51,65,85,0.5);
+    white-space: nowrap;
+  }
+  .report-table tr:hover td { background: rgba(59,130,246,0.05); }
+
+  /* Exit reason table */
+  .exit-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .exit-table th {
+    background: var(--bg); color: var(--muted);
+    padding: 6px 12px; text-align: left;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+  .exit-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid rgba(51,65,85,0.5);
+    font-family: var(--font-mono);
+  }
+  .exit-table tr:hover td { background: rgba(59,130,246,0.05); }
+
+  /* Plotly container */
+  .plotly-chart { width: 100%; margin-top: 12px; }
+
+  /* Provenance */
+  .provenance pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #94a3b8;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    margin-top: 6px;
+  }
+
+  /* Navigation TOC */
+  .toc {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 11px;
+    width: 180px;
+    z-index: 100;
+    display: none;
+  }
+  @media (min-width: 1400px) { .toc { display: block; } }
+  .toc a { display: block; color: var(--muted); text-decoration: none; padding: 2px 0; }
+  .toc a:hover { color: var(--blue); }
+  .toc .toc-title { color: #f1f5f9; font-weight: 600; margin-bottom: 6px; font-size: 12px; }
+
+  .tag {
+    display: inline-block;
+    background: rgba(59,130,246,0.15);
+    border: 1px solid rgba(59,130,246,0.3);
+    color: var(--blue);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    margin-left: 8px;
+  }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-title">Sections</div>
+  <a href="#s1">1. Header</a>
+  <a href="#s2">2. Metrics</a>
+  <a href="#s3">3. Equity</a>
+  <a href="#s4">4. Top 20</a>
+  <a href="#s5">5. Time-in-trade</a>
+  <a href="#s6">6. Exit reasons</a>
+  <a href="#s7">7. R distribution</a>
+  <a href="#s8">8. MAE / MFE</a>
+  <a href="#s9">9. Rolling E[R]</a>
+  <a href="#s10">10. Streaks</a>
+  <a href="#s11">11. Heatmaps</a>
+  <a href="#s12">12. Calendar</a>
+  <a href="#s13">13. Cost sweep</a>
+  <a href="#s14">14. Context</a>
+  <a href="#s15">15. Provenance</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 1 — Header -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s1" class="section">
+  <h1>{{ meta.strategy_id }}
+    <span class="tag">{{ meta.feature_set }}</span>
+    <span class="tag">{{ meta.git_sha }}</span>
+  </h1>
+  <p style="color: var(--muted); margin-top: 4px;">Backtest Report &mdash; generated {{ meta.run_ts }}</p>
+
+  <div class="header-grid">
+    <div class="header-item">
+      <span class="label">Run ID</span>
+      <span class="value">{{ meta.run_id }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Symbol</span>
+      <span class="value">{{ meta.symbol }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Date range</span>
+      <span class="value">{{ meta.date_range }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Feature set</span>
+      <span class="value">{{ meta.feature_set }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Git SHA</span>
+      <span class="value">{{ meta.git_sha }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Cost / round trip</span>
+      <span class="value">${{ meta.cost_per_trade_usd }}</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 2 — Headline metrics -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s2" class="section">
+  <h2>Headline Metrics</h2>
+  <p style="color: var(--muted); font-size: 11px;">
+    Point estimates only. Bootstrap 90% CIs added in Session 11.
+    Headline metric: <strong>Calmar</strong> (annual return / max drawdown).
+  </p>
+  <div class="metrics-grid">
+    {% for m in sections.s2_metrics %}
+    <div class="metric-card{% if m.highlight %} highlight{% endif %}">
+      <div class="metric-label">{{ m.label }}</div>
+      <div class="metric-value">{{ m.value }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 3 — Equity curve + drawdown -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s3" class="section">
+  <h2>Equity Curve &amp; Drawdown</h2>
+  <div class="plotly-chart">{{ sections.s3_equity_html | safe }}</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 4 — Top 20 tables -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s4" class="section">
+  <h2>Top 20 Tables</h2>
+  {{ sections.s4_top20_html | safe }}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 5 — Time in trade -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s5" class="section">
+  <h2>Time-in-Trade Analysis</h2>
+  <div class="plotly-chart">{{ sections.s5_time_html | safe }}</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 6 — Exit-reason breakdown -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s6" class="section">
+  <h2>Exit-Reason Breakdown</h2>
+  {% if sections.s6_exit_table %}
+  <table class="exit-table">
+    <thead>
+      <tr>
+        <th>Exit Reason</th>
+        <th>Count</th>
+        <th>Total P&amp;L</th>
+        <th>Avg P&amp;L</th>
+        <th>Win Rate</th>
+        <th>Median Hold (bars)</th>
+        <th>Median MAE_R</th>
+        <th>Median MFE_R</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in sections.s6_exit_table %}
+      <tr>
+        <td>{{ row.exit_reason }}</td>
+        <td>{{ row.count }}</td>
+        <td>{{ row.total_pnl }}</td>
+        <td>{{ row.avg_pnl }}</td>
+        <td>{{ row.win_rate }}</td>
+        <td>{{ row.median_hold_bars }}</td>
+        <td>{{ row.median_mae_r }}</td>
+        <td>{{ row.median_mfe_r }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Exit reason data not available.</p>
+  {% endif %}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 7 — R-multiple distribution -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s7" class="section">
+  <h2>R-Multiple Distribution</h2>
+  <div class="plotly-chart">{{ sections.s7_r_html | safe }}</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 8 — MAE / MFE forensics -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s8" class="section">
+  <h2>MAE / MFE Forensics</h2>
+  <div class="plotly-chart">{{ sections.s8_mae_mfe_html | safe }}</div>
+  <h3>Gave-Back Winners (MFE_R &gt; 1.0, closed at loss)</h3>
+  {{ sections.s8_giveback_html | safe }}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 9 — Rolling expectancy -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s9" class="section">
+  <h2>Rolling Expectancy</h2>
+  <div class="plotly-chart">{{ sections.s9_rolling_html | safe }}</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 10 — Streak distributions -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s10" class="section">
+  <h2>Streak Distributions</h2>
+  <div class="plotly-chart">{{ sections.s10_streak_html | safe }}</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 11 — Day × Hour heatmaps -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s11" class="section">
+  <h2>Day-of-Week &times; Hour Heatmaps (America/New_York)</h2>
+  <div class="plotly-chart">{{ sections.s11_heatmap_html | safe }}</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 12 — Monthly / yearly P&L -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s12" class="section">
+  <h2>Monthly &amp; Yearly P&amp;L</h2>
+  {{ sections.s12_calendar_html | safe }}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 13 — Cost sensitivity -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s13" class="section">
+  <h2>Cost Sensitivity Sweep (1× / 2× / 3× cost)</h2>
+  <div class="plotly-chart">{{ sections.s13_cost_html | safe }}</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 14 — Market context at entry -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s14" class="section">
+  <h2>Market Context at Entry</h2>
+  <div class="plotly-chart">{{ sections.s14_context_html | safe }}</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 15 — Run provenance -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="s15" class="section provenance">
+  <h2>Run Provenance</h2>
+  <div class="header-grid" style="margin-bottom: 16px;">
+    <div class="header-item">
+      <span class="label">Git SHA</span>
+      <span class="value">{{ sections.s15_provenance.git_sha }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Python</span>
+      <span class="value">{{ sections.s15_provenance.python_version }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Feature set</span>
+      <span class="value">{{ sections.s15_provenance.feature_set }}</span>
+    </div>
+  </div>
+  <h3>Strategy Config (YAML)</h3>
+  <pre>{{ sections.s15_provenance.strategy_yaml }}</pre>
+</div>
+
+</body>
+</html>

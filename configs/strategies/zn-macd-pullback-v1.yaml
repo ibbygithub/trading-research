@@ -1,0 +1,38 @@
+# ZN Multi-Timeframe MACD Histogram Pullback — v1
+#
+# HTF alignment: daily + 60m MACD histogram must agree on direction.
+# 60m must not be declining (stabilising or recovering).
+# Entry: 5m histogram has pulled back against the HTF trend and
+# is exhausting (3 consecutive bars fading toward zero).
+# Fill: next-bar-open.
+# Stop: 2x ATR from signal bar close.
+# Target: session VWAP at signal time.
+# EOD: engine closes any open position at 15:00 ET.
+#
+# Do not change these parameters during the initial evaluation window
+# (2018-2023). That would make the evaluation meaningless.
+
+strategy_id: zn-macd-pullback-v1
+symbol: ZN
+timeframe: 5m
+description: >
+  Multi-timeframe MACD histogram pullback. Daily + 60m must align in direction
+  and the 60m must not be declining. 5m pulls back against the trend, then
+  exhausts over 3 bars. Entry next-bar-open. Stop at 2x ATR (signal bar close),
+  target at session VWAP. Flat by EOD.
+
+signal_module: trading_research.strategies.zn_macd_pullback
+signal_params:
+  streak_bars: 3           # consecutive fading bars required on 5m
+  atr_stop_mult: 2.0       # ATR multiplier for stop distance
+  macd_fast: 12            # MACD fast EMA (applied to 60m computation)
+  macd_slow: 26            # MACD slow EMA
+  macd_signal_period: 9    # MACD signal EMA
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: true
+  max_holding_bars: null
+  use_ofi_resolution: false
+  quantity: 1

@@ -1,0 +1,60 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc:*)",
+      "Bash(uv --version)",
+      "Bash(git --version)",
+      "Bash(touch __TRACKED_VAR__/__init__.py)",
+      "Bash(touch notebooks/.gitkeep data/raw/.gitkeep data/clean/.gitkeep data/features/.gitkeep runs/.gitkeep tests/fixtures/.gitkeep)",
+      "Bash(uv sync:*)",
+      "Bash(uv run:*)",
+      "Bash(tee data/raw/.download_ZN_full.log)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(wait)",
+      "Skill(update-config)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if k != 'per_day_summary'}, indent=2\\)\\)\")",
+      "Bash(grep -v \"^\\\\$\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(python -c ':*)",
+      "Bash(ls C:/Trading-research/runs/zn-macd-pullback-v1/*/)",
+      "Bash(uv add:*)",
+      "Bash(tasklist)",
+      "Bash(taskkill /PID 17276 /F)",
+      "Bash(cmd /c \"taskkill /PID 17276 /F\")",
+      "Bash(cmd /c \"tasklist | findstr trading\")",
+      "Bash(cmd /c \"del /F C:\\\\Trading-research\\\\.venv\\\\Scripts\\\\trading-research.exe\")",
+      "Bash(.venv/Scripts/python.exe -c \"from scipy import stats; print\\('scipy ok'\\)\")",
+      "Bash(.venv/Scripts/pip.exe install:*)",
+      "Bash(.venv/Scripts/python.exe -m pip install scipy)",
+      "Bash(.venv/Scripts/python.exe -m ensurepip)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_stats.py -v --tb=short)",
+      "Bash(.venv/Scripts/python.exe -m pip install pytest)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_distribution.py tests/test_drawdowns.py tests/test_subperiod.py tests/test_monte_carlo.py -v --tb=short)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_walkforward.py -v --tb=short)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_stats.py tests/test_distribution.py tests/test_drawdowns.py tests/test_subperiod.py tests/test_monte_carlo.py tests/test_walkforward.py -v --tb=short)",
+      "Bash(.venv/Scripts/python.exe -m pytest --tb=short -q)",
+      "Bash(.venv/Scripts/python.exe -c ':*)",
+      "Bash(.venv/Scripts/python.exe -m pytest --tb=no -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest --tb=no -q --no-header)",
+      "Bash(.venv/Scripts/python.exe -m trading_research.cli.main report zn-macd-pullback-v1)",
+      "Bash(.venv/Scripts/python.exe -m pytest --tb=no)"
+    ],
+    "defaultMode": "acceptEdits"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd C:/Trading-research && mkdir -p outputs/work-log && recent_log=$(find outputs/work-log -name '*.md' -mmin -120 2>/dev/null | head -1) && if [ -z \"$recent_log\" ]; then echo \"No session work log found.\"; exit 2; fi",
+            "timeout": 10,
+            "statusMessage": "Checking for session work log...",
+            "asyncRewake": true,
+            "rewakeMessage": "No session work log was written. Before finishing, write a summary to outputs/work-log/YYYY-MM-DD-HH-MM-summary.md. Cover: what was completed, key files changed or created, decisions made, and what the next session should start from. Keep it concise — one page. Then stop."
+          }
+        ]
+      }
+    ]
+  }
+}

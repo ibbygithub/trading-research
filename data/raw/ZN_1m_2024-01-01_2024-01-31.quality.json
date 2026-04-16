@@ -1,0 +1,39 @@
+{
+  "dataset_path": "data\\raw\\ZN_1m_2024-01-01_2024-01-31.parquet",
+  "symbol": "ZN",
+  "timeframe": "1m",
+  "date_range": [
+    "2024-01-01",
+    "2024-01-31"
+  ],
+  "calendar": "CBOT_Bond",
+  "row_count": 28998,
+  "expected_row_count": 30120,
+  "missing_bars_total": 1179,
+  "missing_bars_minor_gaps": 1173,
+  "missing_bars_unexplained": 6,
+  "extra_bars_outside_calendar": 57,
+  "duplicate_timestamps": 0,
+  "negative_volumes": 0,
+  "inverted_high_low": 0,
+  "null_required_fields": 0,
+  "buy_sell_volume_coverage_pct": 100.0,
+  "large_gaps": [
+    {
+      "start_utc": "2024-01-22T23:13:00+00:00",
+      "end_utc": "2024-01-22T23:18:00+00:00",
+      "bars_missing": 6,
+      "in_rth": false
+    }
+  ],
+  "minor_gap_count": 936,
+  "missing_sessions": [],
+  "session_count_expected": 22,
+  "session_count_present": 22,
+  "failures": [
+    "Large gap: 6 missing bars starting 2024-01-22T23:13:00+00:00."
+  ],
+  "passed": false,
+  "validation_timestamp_utc": "2026-04-13T19:38:34.971554+00:00",
+  "calendar_library_version": "pandas-market-calendars==5.3.2"
+}
