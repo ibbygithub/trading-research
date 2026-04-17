@@ -1,0 +1,115 @@
+# Feature set: base-v1
+#
+# The canonical baseline for ZN and other single-instrument work.
+# Changing this file without bumping the tag is a bug — tags are immutable
+# once a feature parquet has been built against them.
+#
+# To fork an experiment: copy this file to configs/featuresets/<new-tag>.yaml
+# and edit the copy. To replace the baseline: create base-v2.yaml and
+# rebuild consumers against the new tag.
+#
+# See docs/pipeline.md for the rebuild workflow and docs/architecture/
+# data-layering.md for the layering rules.
+
+tag: base-v1
+description: >
+  Baseline feature set for ZN intraday mean-reversion work. Includes
+  trend/momentum/volatility/order-flow indicators on the bar's own
+  timeframe, session/weekly/monthly VWAP sampled from 1m, and
+  higher-timeframe bias columns projected from the daily bar.
+
+# -----------------------------------------------------------------------
+# Indicators computed on the bar's own timeframe
+# -----------------------------------------------------------------------
+indicators:
+  - name: atr
+    period: 14
+
+  - name: rsi
+    period: 14
+
+  - name: bollinger
+    period: 20
+    num_std: 2.0
+
+  - name: macd
+    fast: 12
+    slow: 26
+    signal: 9
+    # Derived histogram features (trading the fading-momentum pattern):
+    # hist_above_zero  — boolean, current hist > 0
+    # hist_slope       — first difference of hist
+    # bars_since_zero_cross — integer count since last sign flip
+    # hist_decline_streak   — signed integer; positive = rising streak,
+    #                          negative = declining streak. This is the
+    #                          "hist above zero but each bar smaller for
+    #                          3-4 bars → look to short" pattern.
+    derived:
+      - hist_above_zero
+      - hist_slope
+      - bars_since_zero_cross
+      - hist_decline_streak
+
+  - name: sma
+    period: 200
+
+  - name: donchian
+    period: 20
+
+  - name: adx
+    period: 14
+
+  - name: ofi
+    period: 14
+
+# -----------------------------------------------------------------------
+# VWAP flavors — computed on 1m and sampled at the bar close
+# -----------------------------------------------------------------------
+vwap:
+  - name: vwap_session       # resets on session boundary (gap > 60 min)
+  - name: vwap_weekly        # resets at first session of each ISO week
+  - name: vwap_monthly       # resets at first session of each trade-date month
+
+# -----------------------------------------------------------------------
+# Higher-timeframe bias projections
+#
+# Each entry computes an indicator on the source timeframe, shifts it by
+# one bar (look-ahead prevention), and left-joins the result onto the
+# intraday frame by trade_date. Within a session, all intraday bars see
+# the same HTF value.
+# -----------------------------------------------------------------------
+htf_projections:
+  - source_tf: 1D
+    columns:
+      - name: daily_ema_20
+        indicator: ema
+        period: 20
+      - name: daily_ema_50
+        indicator: ema
+        period: 50
+      - name: daily_ema_200
+        indicator: ema
+        period: 200
+      - name: daily_sma_200
+        indicator: sma
+        period: 200
+      - name: daily_atr_14
+        indicator: atr
+        period: 14
+      - name: daily_adx_14
+        indicator: adx
+        period: 14
+      - name: daily_macd_hist
+        indicator: macd_hist
+        fast: 12
+        slow: 26
+        signal: 9
+
+# -----------------------------------------------------------------------
+# Timeframes this feature set is built for
+# -----------------------------------------------------------------------
+target_timeframes:
+  - 5m
+  - 15m
+  - 60m
+  - 240m

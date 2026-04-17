@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "layer": "clean",
+  "symbol": "ZN",
+  "timeframe": "1D",
+  "adjustment": "backadjusted",
+  "row_count": 4203,
+  "date_range": {
+    "start": "2010-01-03T23:31:00+00:00",
+    "end": "2026-04-09T22:01:00+00:00"
+  },
+  "sources": [
+    {
+      "path": "data\\clean\\ZN_1m_backadjusted_2010-01-01_2026-04-11.parquet",
+      "file_hash": "5eea60c60db70a60"
+    }
+  ],
+  "parameters": {
+    "method": "trade_date_groupby",
+    "offset_hours": 6
+  },
+  "built_at": "2026-04-14T14:10:45.798962+00:00",
+  "code_commit": "unknown"
+}

@@ -1,0 +1,19 @@
+# Example strategy config — always-flat, zero signals.
+# Used to verify the backtest engine runs end-to-end.
+# Replace signal_module with a real strategy implementation.
+
+strategy_id: example-v1
+symbol: ZN
+timeframe: 5m
+description: "Placeholder — returns zero signals. Used for engine smoke tests."
+
+signal_module: trading_research.strategies.example   # must expose generate_signals(df)
+signal_params: {}
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: true
+  max_holding_bars: null
+  use_ofi_resolution: false
+  quantity: 1

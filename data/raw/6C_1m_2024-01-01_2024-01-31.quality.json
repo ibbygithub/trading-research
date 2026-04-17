@@ -1,0 +1,95 @@
+{
+  "dataset_path": "data\\raw\\6C_1m_2024-01-01_2024-01-31.parquet",
+  "symbol": "6C",
+  "timeframe": "1m",
+  "date_range": [
+    "2024-01-01",
+    "2024-01-31"
+  ],
+  "calendar": "CMEGlobex_FX",
+  "row_count": 27508,
+  "expected_row_count": 30360,
+  "missing_bars_total": 2899,
+  "missing_bars_minor_gaps": 2824,
+  "missing_bars_unexplained": 75,
+  "extra_bars_outside_calendar": 47,
+  "duplicate_timestamps": 0,
+  "negative_volumes": 0,
+  "inverted_high_low": 0,
+  "null_required_fields": 0,
+  "buy_sell_volume_coverage_pct": 100.0,
+  "large_gaps": [
+    {
+      "start_utc": "2024-01-03T04:05:00+00:00",
+      "end_utc": "2024-01-03T04:12:00+00:00",
+      "bars_missing": 8,
+      "in_rth": false
+    },
+    {
+      "start_utc": "2024-01-04T23:22:00+00:00",
+      "end_utc": "2024-01-04T23:27:00+00:00",
+      "bars_missing": 6,
+      "in_rth": false
+    },
+    {
+      "start_utc": "2024-01-08T02:41:00+00:00",
+      "end_utc": "2024-01-08T02:47:00+00:00",
+      "bars_missing": 7,
+      "in_rth": false
+    },
+    {
+      "start_utc": "2024-01-08T05:19:00+00:00",
+      "end_utc": "2024-01-08T05:24:00+00:00",
+      "bars_missing": 6,
+      "in_rth": false
+    },
+    {
+      "start_utc": "2024-01-15T04:59:00+00:00",
+      "end_utc": "2024-01-15T05:09:00+00:00",
+      "bars_missing": 11,
+      "in_rth": false
+    },
+    {
+      "start_utc": "2024-01-15T05:11:00+00:00",
+      "end_utc": "2024-01-15T05:19:00+00:00",
+      "bars_missing": 9,
+      "in_rth": false
+    },
+    {
+      "start_utc": "2024-01-19T04:13:00+00:00",
+      "end_utc": "2024-01-19T04:19:00+00:00",
+      "bars_missing": 7,
+      "in_rth": false
+    },
+    {
+      "start_utc": "2024-01-19T04:31:00+00:00",
+      "end_utc": "2024-01-19T04:39:00+00:00",
+      "bars_missing": 9,
+      "in_rth": false
+    },
+    {
+      "start_utc": "2024-01-23T23:47:00+00:00",
+      "end_utc": "2024-01-23T23:52:00+00:00",
+      "bars_missing": 6,
+      "in_rth": false
+    },
+    {
+      "start_utc": "2024-01-29T03:49:00+00:00",
+      "end_utc": "2024-01-29T03:54:00+00:00",
+      "bars_missing": 6,
+      "in_rth": false
+    }
+  ],
+  "minor_gap_count": 2078,
+  "missing_sessions": [],
+  "session_count_expected": 22,
+  "session_count_present": 22,
+  "failures": [
+    "Large gap: 11 missing bars starting 2024-01-15T04:59:00+00:00.",
+    "Large gap: 9 missing bars starting 2024-01-15T05:11:00+00:00.",
+    "Large gap: 9 missing bars starting 2024-01-19T04:31:00+00:00."
+  ],
+  "passed": false,
+  "validation_timestamp_utc": "2026-04-13T20:29:42.047425+00:00",
+  "calendar_library_version": "pandas-market-calendars==5.3.2"
+}

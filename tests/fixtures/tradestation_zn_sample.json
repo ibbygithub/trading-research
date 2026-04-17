@@ -1,0 +1,47 @@
+{
+  "Bars": [
+    {
+      "High": "110.75",
+      "Low": "110.25",
+      "Open": "110.50",
+      "Close": "110.5625",
+      "TimeStamp": "2024-01-02T14:30:00Z",
+      "TotalVolume": "1234",
+      "DownTicks": 45,
+      "DownVolume": 534,
+      "TotalTicks": 95,
+      "UpTicks": 50,
+      "UpVolume": 700,
+      "IsRealtime": false,
+      "IsEndOfHistory": false,
+      "Epoch": 1704206400000
+    },
+    {
+      "High": "110.6875",
+      "Low": "110.5000",
+      "Open": "110.5625",
+      "Close": "110.6250",
+      "TimeStamp": "2024-01-02T14:31:00Z",
+      "TotalVolume": "873",
+      "DownTicks": 30,
+      "DownVolume": 350,
+      "TotalTicks": 70,
+      "UpTicks": 40,
+      "UpVolume": 523,
+      "IsRealtime": false,
+      "IsEndOfHistory": false,
+      "Epoch": 1704206460000
+    },
+    {
+      "High": "110.6250",
+      "Low": "110.4375",
+      "Open": "110.6250",
+      "Close": "110.4688",
+      "TimeStamp": "2024-01-02T14:32:00Z",
+      "TotalVolume": "2001",
+      "IsRealtime": false,
+      "IsEndOfHistory": true,
+      "Epoch": 1704206520000
+    }
+  ]
+}

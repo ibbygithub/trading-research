@@ -1,0 +1,186 @@
+# Instrument registry.
+#
+# Every contract the project touches is defined here. Hard-coding any of these
+# values (tick size, contract value, session hours) in strategy code is a bug.
+#
+# Add new instruments to this file, not to Python constants.
+
+instruments:
+
+  ZN:
+    root_symbol: ZN
+    continuous_symbol: "@TY"          # TradeStation continuous-contract symbol.
+                                      # NOTE: TradeStation uses TY (not ZN) as the root
+                                      # for 10-Year T-Note futures. CME root is ZN; TS root
+                                      # is TY. Individual contracts: TYH24, TYM24, TYU24, TYZ24.
+    description: "10-Year U.S. Treasury Note futures"
+    exchange: CBOT
+    asset_class: rates
+    currency: USD
+
+    # Tick and contract economics. A one-tick move in ZN is 1/64 of a point
+    # = 0.015625 in price, worth $15.625 per contract.
+    tick_size: 0.015625
+    tick_value_usd: 15.625
+    point_value_usd: 1000.0
+    contract_size_face_value: 100000    # $100k face
+
+    # Session hours in America/New_York. Sunday-Friday Globex for ZN is
+    # 18:00 - 17:00 next day, with a one-hour pause 17:00 - 18:00.
+    session:
+      timezone: America/New_York
+      globex:
+        open:  "18:00"
+        close: "17:00"                 # next-day close
+      rth:
+        open:  "08:20"
+        close: "15:00"
+
+    # Continuous contract roll convention. Default: roll on the first
+    # business day of the expiration month. This matches what most desks do
+    # for the 10y and is recorded explicitly here so backtests can audit it.
+    roll:
+      convention: first_business_day_of_expiration_month
+      notes: "Quarterly expirations (Mar/Jun/Sep/Dec). Liquidity typically moves to the front month by the first few days of the expiration month."
+
+    # How the project pulls data for this instrument.
+    data:
+      base_timeframe: 1m
+      historical_source: tradestation
+      # Session template hint: TradeStation's session-template knob is
+      # equities-only. For futures we pass nothing and take whatever
+      # Globex the API returns.
+      tradestation_session_template: null
+      # pandas-market-calendars calendar name for session/holiday validation.
+      # Verified: CBOT_Bond opens at 18:00 ET = 23:00 UTC, closes at 17:00 ET
+      # next day = 22:00 UTC, with a 1-hour daily break at 17:00-18:00 ET.
+      # This matches ZN Globex hours exactly.
+      calendar: CBOT_Bond
+
+    # Pessimistic defaults for backtesting. 1 tick slippage each way is
+    # conservative but realistic for ZN at 5m–15m timeframes during RTH.
+    # Commission reflects TradeStation futures rates (exchange + NFA + platform).
+    backtest_defaults:
+      slippage_ticks: 1       # per side; 1 tick = $15.625 for ZN
+      commission_usd: 2.00    # per side; $4.00 round trip
+
+  # ---------------------------------------------------------------------------
+  # CME FX Futures
+  # NOTE on TradeStation naming: CME root symbols (6A, 6C, 6N) differ from
+  # TradeStation roots (AD, CD, NE1). The continuous_symbol field holds the
+  # TS symbol. Individual contracts use TS root + month + 2-digit year:
+  # e.g. ADH24 (AUD Mar 2024), CDM24 (CAD Jun 2024), NE1H24 (NZD Mar 2024).
+  # ---------------------------------------------------------------------------
+
+  6A:
+    root_symbol: 6A
+    continuous_symbol: "@AD"      # TradeStation root: AD (CME root: 6A)
+    description: "Australian Dollar / U.S. Dollar futures"
+    exchange: CME
+    asset_class: fx
+    currency: USD
+
+    # 1 tick = 0.0001 AUD/USD = $10 per contract (100,000 AUD notional)
+    tick_size: 0.0001
+    tick_value_usd: 10.0
+    point_value_usd: 100000.0
+    contract_size_face_value: 100000   # 100,000 AUD
+
+    session:
+      timezone: America/New_York
+      globex:
+        open:  "18:00"
+        close: "17:00"             # next-day close; 1h daily break 17:00-18:00 ET
+      rth:
+        open:  "08:00"
+        close: "17:00"
+
+    roll:
+      convention: first_business_day_of_expiration_month
+      notes: "Quarterly expirations (Mar/Jun/Sep/Dec). Commodity currency correlated with iron ore and risk sentiment."
+
+    data:
+      base_timeframe: 1m
+      historical_source: tradestation
+      tradestation_session_template: null
+      calendar: CMEGlobex_FX      # Verified: same 23:00 UTC open / 22:00 UTC close as CBOT_Bond
+
+    backtest_defaults:
+      slippage_ticks: 1       # per side; 1 tick = $10 for 6A
+      commission_usd: 2.00    # per side
+
+  6C:
+    root_symbol: 6C
+    continuous_symbol: "@CD"      # TradeStation root: CD (CME root: 6C)
+    description: "Canadian Dollar / U.S. Dollar futures"
+    exchange: CME
+    asset_class: fx
+    currency: USD
+
+    # 1 tick = 0.0001 CAD/USD = $10 per contract (100,000 CAD notional)
+    tick_size: 0.0001
+    tick_value_usd: 10.0
+    point_value_usd: 100000.0
+    contract_size_face_value: 100000   # 100,000 CAD
+
+    session:
+      timezone: America/New_York
+      globex:
+        open:  "18:00"
+        close: "17:00"
+      rth:
+        open:  "08:00"
+        close: "17:00"
+
+    roll:
+      convention: first_business_day_of_expiration_month
+      notes: "Quarterly expirations (Mar/Jun/Sep/Dec). Commodity currency, closely tracks crude oil and broader risk-on/off."
+
+    data:
+      base_timeframe: 1m
+      historical_source: tradestation
+      tradestation_session_template: null
+      calendar: CMEGlobex_FX
+
+    backtest_defaults:
+      slippage_ticks: 1       # per side; 1 tick = $10 for 6C
+      commission_usd: 2.00    # per side
+
+  6N:
+    root_symbol: 6N
+    continuous_symbol: "@NE1"     # TradeStation root: NE1 (CME root: 6N).
+                                  # NOTE: TS uses 'NE1' (with digit) not 'NE' (which is a stock).
+                                  # Individual contracts: NE1H24, NE1M24, NE1U24, NE1Z24.
+    description: "New Zealand Dollar / U.S. Dollar futures"
+    exchange: CME
+    asset_class: fx
+    currency: USD
+
+    # 1 tick = 0.0001 NZD/USD = $10 per contract (100,000 NZD notional)
+    tick_size: 0.0001
+    tick_value_usd: 10.0
+    point_value_usd: 100000.0
+    contract_size_face_value: 100000   # 100,000 NZD
+
+    session:
+      timezone: America/New_York
+      globex:
+        open:  "18:00"
+        close: "17:00"
+      rth:
+        open:  "08:00"
+        close: "17:00"
+
+    roll:
+      convention: first_business_day_of_expiration_month
+      notes: "Quarterly expirations (Mar/Jun/Sep/Dec). Less liquid than AUD/CAD; pairs naturally with 6A and 6C for commodity-FX spread trades."
+
+    data:
+      base_timeframe: 1m
+      historical_source: tradestation
+      tradestation_session_template: null
+      calendar: CMEGlobex_FX
+
+    backtest_defaults:
+      slippage_ticks: 1       # per side; 1 tick = $10 for 6N
+      commission_usd: 2.00    # per side
