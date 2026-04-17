@@ -1,0 +1,58 @@
+# Broker Margin Configuration (Retail)
+# Last Updated: 2026-04-16
+# Source: TradeStation & IBKR Official Margin Tables
+# Note: This is hand-maintained data and must be refreshed periodically.
+
+tradestation:
+  ZN:
+    overnight_initial: 2310
+    overnight_maintenance: 2100
+    day_trade_initial: 1155
+    day_trade_maintenance: 1050
+  ES:
+    overnight_initial: 12320
+    overnight_maintenance: 11200
+    day_trade_initial: 3080
+    day_trade_maintenance: 2800
+  6A:
+    overnight_initial: 2090
+    overnight_maintenance: 1900
+    day_trade_initial: 522
+    day_trade_maintenance: 475
+  6C:
+    overnight_initial: 1430
+    overnight_maintenance: 1300
+    day_trade_initial: 357
+    day_trade_maintenance: 325
+  6N:
+    overnight_initial: 2420
+    overnight_maintenance: 2200
+    day_trade_initial: 605
+    day_trade_maintenance: 550
+
+ibkr:
+  ZN:
+    overnight_initial: 2310
+    overnight_maintenance: 2100
+    day_trade_initial: 2310
+    day_trade_maintenance: 2100
+  ES:
+    overnight_initial: 12320
+    overnight_maintenance: 11200
+    day_trade_initial: 12320
+    day_trade_maintenance: 11200
+  6A:
+    overnight_initial: 2090
+    overnight_maintenance: 1900
+    day_trade_initial: 2090
+    day_trade_maintenance: 1900
+  6C:
+    overnight_initial: 1430
+    overnight_maintenance: 1300
+    day_trade_initial: 1430
+    day_trade_maintenance: 1300
+  6N:
+    overnight_initial: 2420
+    overnight_maintenance: 2200
+    day_trade_initial: 2420
+    day_trade_maintenance: 2200

@@ -31,7 +31,7 @@ class TestSessionVWAP:
     def test_resets_on_gap(self):
         """A gap > 60 min should reset the session VWAP."""
         df = _make_with_gap(gap_minutes=120)
-        vwap = compute_session_vwap(df)
+        vwap = compute_session_vwap(df)['vwap']
         # Session 1: first bar's vwap should equal its own close (single bar cumulative).
         assert vwap.iloc[0] == pytest.approx(df["close"].iloc[0], rel=1e-6)
         # Session 2 starts at index 10: vwap should reset to the first bar of session 2.
@@ -40,7 +40,7 @@ class TestSessionVWAP:
     def test_no_reset_within_session(self):
         """Without a gap, VWAP accumulates across all bars."""
         df = make_ohlcv(20)
-        vwap = compute_session_vwap(df)
+        vwap = compute_session_vwap(df)['vwap']
         # VWAP should be a running weighted average, not repeating single bar values.
         # First bar equals its close; subsequent bars are weighted means.
         assert vwap.iloc[0] == pytest.approx(df["close"].iloc[0], rel=1e-6)
@@ -51,13 +51,13 @@ class TestSessionVWAP:
     def test_single_bar_session(self):
         """A session with one bar: VWAP == close of that bar."""
         df = make_ohlcv(1)
-        vwap = compute_session_vwap(df)
+        vwap = compute_session_vwap(df)['vwap']
         assert vwap.iloc[0] == pytest.approx(df["close"].iloc[0], rel=1e-6)
 
     def test_no_lookahead(self):
         """Session VWAP should not use future bars."""
         df = make_ohlcv(100)
-        full = compute_session_vwap(df)
+        full = compute_session_vwap(df)['vwap']
         partial = compute_session_vwap(df.iloc[:51])
         assert full.iloc[50] == pytest.approx(partial.iloc[-1], rel=1e-6)
 
@@ -67,7 +67,7 @@ class TestSessionVWAP:
         # s2_start = start + (10 + gap_minutes) min. Gap between s1[-1]=9min and
         # s2[0]=(10+gap)min is (gap+1) minutes. To get a gap of 59 min use gap_minutes=58.
         df = _make_with_gap(gap_minutes=58)  # actual gap = 59 min, < 60 → no reset
-        vwap = compute_session_vwap(df)
+        vwap = compute_session_vwap(df)['vwap']
         # No reset: bar 10's VWAP accumulates from bar 0, so it's NOT equal to bar 10's close alone.
         expected_if_reset = df["close"].iloc[10]
         # If VWAP reset, it would equal the close of the first bar of session 2.
@@ -93,20 +93,20 @@ class TestWeeklyVWAP:
 
     def test_resets_at_new_week(self):
         df = self._multi_week_df()
-        vwap = compute_weekly_vwap(df)
+        vwap = compute_weekly_vwap(df)['vwap']
         # First bar of week 2 (index 10) should reset to its own close.
         assert vwap.iloc[10] == pytest.approx(df["close"].iloc[10], rel=1e-6)
 
     def test_accumulates_within_week(self):
         df = self._multi_week_df()
-        vwap = compute_weekly_vwap(df)
+        vwap = compute_weekly_vwap(df)['vwap']
         # Bar 1 of week 1: vwap is the average of bar 0 and bar 1 (equal volumes).
         expected = (df["close"].iloc[0] + df["close"].iloc[1]) / 2.0
         assert vwap.iloc[1] == pytest.approx(expected, rel=1e-6)
 
     def test_no_lookahead(self):
         df = self._multi_week_df()
-        full = compute_weekly_vwap(df)
+        full = compute_weekly_vwap(df)['vwap']
         partial = compute_weekly_vwap(df.iloc[:11])
         assert full.iloc[10] == pytest.approx(partial.iloc[-1], rel=1e-6)
 
@@ -129,12 +129,12 @@ class TestMonthlyVWAP:
 
     def test_resets_at_new_month(self):
         df = self._multi_month_df()
-        vwap = compute_monthly_vwap(df)
+        vwap = compute_monthly_vwap(df)['vwap']
         # First bar of Feb (index 10) should reset.
         assert vwap.iloc[10] == pytest.approx(df["close"].iloc[10], rel=1e-6)
 
     def test_no_lookahead(self):
         df = self._multi_month_df()
-        full = compute_monthly_vwap(df)
+        full = compute_monthly_vwap(df)['vwap']
         partial = compute_monthly_vwap(df.iloc[:11])
         assert full.iloc[10] == pytest.approx(partial.iloc[-1], rel=1e-6)

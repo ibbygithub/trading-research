@@ -157,9 +157,7 @@ def build_features(
     vwap_monthly = compute_monthly_vwap(df_1m)
 
     df_1m_vwap = df_1m[["timestamp_utc"]].copy()
-    df_1m_vwap["vwap_session"] = vwap_session.values
-    df_1m_vwap["vwap_weekly"] = vwap_weekly.values
-    df_1m_vwap["vwap_monthly"] = vwap_monthly.values
+    df_1m_vwap = pd.concat([df_1m_vwap, vwap_session, vwap_weekly, vwap_monthly], axis=1)
 
     # Use merge_asof to sample 1m VWAP at the close of each target-TF bar.
     features = pd.merge_asof(
@@ -279,9 +277,9 @@ def _indicator_list() -> list[dict[str, Any]]:
         {"name": "donchian", "period": 20},
         {"name": "adx", "period": 14},
         {"name": "ofi", "period": 14},
-        {"name": "vwap_session"},
-        {"name": "vwap_weekly"},
-        {"name": "vwap_monthly"},
+        {"name": "vwap_session", "derived": ["std_1_0", "std_1_5", "std_2_0", "std_3_0"]},
+        {"name": "vwap_weekly", "derived": ["std_1_0", "std_1_5", "std_2_0", "std_3_0"]},
+        {"name": "vwap_monthly", "derived": ["std_1_0", "std_1_5", "std_2_0", "std_3_0"]},
     ]
 
 

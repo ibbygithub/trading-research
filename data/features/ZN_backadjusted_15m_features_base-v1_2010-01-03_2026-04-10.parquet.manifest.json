@@ -11,21 +11,23 @@
   },
   "sources": [
     {
-      "path": "data\\clean\\ZN_backadjusted_15m_2010-01-03_2026-04-10.parquet",
-      "file_hash": "8d205b62dfe85937"
+      "path": "C:\\git\\work\\Trading-research\\data\\clean\\ZN_backadjusted_15m_2010-01-03_2026-04-10.parquet",
+      "built_at": "2026-04-14T01:04:31.253031+00:00",
+      "row_count": 369388
     },
     {
-      "path": "data\\clean\\ZN_1m_backadjusted_2010-01-01_2026-04-11.parquet",
-      "file_hash": "5eea60c60db70a60"
+      "path": "C:\\git\\work\\Trading-research\\data\\clean\\ZN_1m_backadjusted_2010-01-01_2026-04-11.parquet",
+      "built_at": "2026-04-14T01:04:18.729759+00:00",
+      "row_count": 4673993
     },
     {
-      "path": "data\\clean\\ZN_backadjusted_1D_2010-01-03_2026-04-09.parquet",
+      "path": "C:\\git\\work\\Trading-research\\data\\clean\\ZN_backadjusted_1D_2010-01-03_2026-04-09.parquet",
       "built_at": "2026-04-14T14:10:45.798962+00:00",
       "row_count": 4203
     }
   ],
   "feature_set_tag": "base-v1",
-  "feature_set_config": "C:\\Trading-research\\configs\\featuresets\\base-v1.yaml",
+  "feature_set_config": "C:\\git\\work\\Trading-research\\configs\\featuresets\\base-v1.yaml",
   "indicators": [
     {
       "name": "atr",
@@ -69,13 +71,31 @@
       "period": 14
     },
     {
-      "name": "vwap_session"
+      "name": "vwap_session",
+      "derived": [
+        "std_1_0",
+        "std_1_5",
+        "std_2_0",
+        "std_3_0"
+      ]
     },
     {
-      "name": "vwap_weekly"
+      "name": "vwap_weekly",
+      "derived": [
+        "std_1_0",
+        "std_1_5",
+        "std_2_0",
+        "std_3_0"
+      ]
     },
     {
-      "name": "vwap_monthly"
+      "name": "vwap_monthly",
+      "derived": [
+        "std_1_0",
+        "std_1_5",
+        "std_2_0",
+        "std_3_0"
+      ]
     }
   ],
   "htf_projections": [
@@ -123,6 +143,6 @@
       ]
     }
   ],
-  "built_at": "2026-04-14T14:17:50.143717+00:00",
-  "code_commit": "unknown"
+  "built_at": "2026-04-17T00:28:33.376880+00:00",
+  "code_commit": "f9b8919"
 }

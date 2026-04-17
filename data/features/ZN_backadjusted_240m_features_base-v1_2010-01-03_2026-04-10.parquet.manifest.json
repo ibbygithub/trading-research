@@ -2,18 +2,18 @@
   "schema_version": 1,
   "layer": "features",
   "symbol": "ZN",
-  "timeframe": "5m",
+  "timeframe": "240m",
   "adjustment": "backadjusted",
-  "row_count": 1064432,
+  "row_count": 25910,
   "date_range": {
-    "start": "2010-01-03T23:30:00+00:00",
-    "end": "2026-04-10T21:00:00+00:00"
+    "start": "2010-01-03T20:00:00+00:00",
+    "end": "2026-04-10T20:00:00+00:00"
   },
   "sources": [
     {
-      "path": "C:\\git\\work\\Trading-research\\data\\clean\\ZN_backadjusted_5m_2010-01-03_2026-04-10.parquet",
-      "built_at": "2026-04-14T01:04:30.288741+00:00",
-      "row_count": 1064432
+      "path": "C:\\git\\work\\Trading-research\\data\\clean\\ZN_backadjusted_240m_2010-01-03_2026-04-10.parquet",
+      "built_at": "2026-04-14T14:09:39.188446+00:00",
+      "row_count": 25910
     },
     {
       "path": "C:\\git\\work\\Trading-research\\data\\clean\\ZN_1m_backadjusted_2010-01-01_2026-04-11.parquet",
@@ -143,6 +143,6 @@
       ]
     }
   ],
-  "built_at": "2026-04-17T00:28:15.058427+00:00",
+  "built_at": "2026-04-17T00:29:05.059232+00:00",
   "code_commit": "f9b8919"
 }

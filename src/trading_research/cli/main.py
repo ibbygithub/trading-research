@@ -439,13 +439,10 @@ def report(
     typer.echo(f"Generating report for: {run_dir}")
 
     # Generate HTML report + data dictionary
-    try:
-        paths = generate_report(run_dir)
-        typer.echo(f"Report:           {paths.report}")
-        typer.echo(f"Data dictionary:  {paths.data_dictionary}")
-    except Exception as exc:
-        typer.echo(f"ERROR generating report: {exc}", err=True)
-        raise typer.Exit(code=1)
+    paths = generate_report(run_dir)
+    typer.echo(f"Report:           {paths.report}")
+    typer.echo(f"Data dictionary:  {paths.data_dictionary}")
+
 
     # Generate pipeline integrity report
     try:
@@ -573,6 +570,28 @@ def walkforward(
 def main() -> None:
     app()
 
+
+@app.command()
+def portfolio(
+    run_ids: list[str] = typer.Argument(..., help="List of run IDs to include in the portfolio"),
+    output_dir: Path = typer.Option(
+        None, "--output-dir", "-o", help="Directory to save the portfolio report. Defaults to runs/portfolio/<timestamp>/"
+    )
+):
+    """Generate a multi-strategy portfolio analytics report."""
+    from trading_research.eval.portfolio_report import generate_portfolio_report
+    import time
+    
+    if output_dir is None:
+        run_ts = time.strftime("%Y-%m-%d-%H-%M-%S")
+        output_dir = Path("runs/portfolio") / run_ts
+        
+    try:
+        report_path = generate_portfolio_report(run_ids, output_dir)
+        typer.secho(f"Success! Portfolio report generated at {report_path}", fg=typer.colors.GREEN)
+    except Exception as e:
+        typer.secho(f"Failed to generate portfolio report: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
 
 if __name__ == "__main__":
     main()

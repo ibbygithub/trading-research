@@ -57,6 +57,13 @@ TRADE_LOG_COLUMNS: list[dict] = [
     {"name": "outcome",            "dtype": "str",             "units": "-",      "definition": "'winner' (net_pnl_usd > 0), 'loser' (net_pnl_usd < 0), 'scratch' (net_pnl_usd == 0)."},
     {"name": "entry_dow",          "dtype": "str",             "units": "-",      "definition": "Day of week of entry_ts in America/New_York (Monday–Friday)."},
     {"name": "entry_hour",         "dtype": "int",             "units": "hour",   "definition": "Hour of day of entry_ts in America/New_York (0–23)."},
+    # ── Session 12: Machine Learning & Regimes ──────────────────────────────
+    {"name": "vol_regime",         "dtype": "str",             "units": "-",      "definition": "Volatility regime (low, mid, high) based on trailing 252-session ATR percentiles at entry."},
+    {"name": "trend_regime",       "dtype": "str",             "units": "-",      "definition": "Trend regime (weak, moderate, strong) based on ADX_14 at entry."},
+    {"name": "fomc_regime",        "dtype": "str",             "units": "-",      "definition": "Distance to nearest FOMC meeting (fomc_today, fomc_week, fomc_far, etc.)."},
+    {"name": "shap_top_pos_1",     "dtype": "str",             "units": "-",      "definition": "The top feature contributing positively to the ML classifier's probability prediction for this trade."},
+    {"name": "shap_top_neg_1",     "dtype": "str",             "units": "-",      "definition": "The top feature contributing negatively to the ML classifier's probability prediction for this trade."},
+    {"name": "cluster",            "dtype": "int",             "units": "-",      "definition": "Trade cluster ID identified by HDBSCAN based on the entry-bar feature vector (-1 = noise)."},
 ]
 
 # ---------------------------------------------------------------------------
@@ -103,6 +110,11 @@ REPORT_METRICS: list[dict] = [
     {"name": "Subperiod stability",  "formula": "per-year metrics (Calmar, Sharpe, win_rate)", "units": "-",  "interpretation": "Headline metrics computed separately for each calendar year. A strategy is 'stable' when subperiod metrics are consistent rather than front-loaded. The degradation flag fires when the most recent year is worse than the worst historical year — a key early warning of out-of-sample decay."},
     {"name": "Monte Carlo shuffle",  "formula": "permute(trade_order) × 1000; compute metrics per permutation", "units": "-", "interpretation": "Resamples trade order 1,000 times preserving individual P&Ls. The distribution of max drawdown and Calmar across shuffles reveals how much of the historical equity path was structural (strategy edge) vs lucky (trade sequencing). If the actual max DD is at the 90th+ percentile of shuffle outcomes, the historical path was lucky."},
     {"name": "Walk-forward OOS",     "formula": "fit on folds 0..k-1, test on fold k, purge gap_bars, embargo embargo_bars", "units": "-", "interpretation": "Purged walk-forward: splits the full dataset into n_folds contiguous windows, excludes gap_bars between train and test (prevents label leakage), excludes embargo_bars after test (prevents correlation). Per-fold OOS metrics are the honest out-of-sample performance estimate. For rule-based strategies with fixed parameters, the walk-forward is a subperiod robustness test."},
+    # ── Session 12: ML & Analytics ───────────────────────────────────────────
+    {"name": "Permutation Importance", "formula": "drop_in_AUC(shuffle(feature))", "units": "Δ AUC", "interpretation": "Measures how much the classifier's performance drops when a feature is randomly shuffled on held-out data. Unlike built-in tree importance, it is unbiased toward high-cardinality features."},
+    {"name": "SHAP value",           "formula": "E[f(x|S U {i})] - E[f(x|S)]",  "units": "log-odds", "interpretation": "The marginal contribution of a feature to the model's prediction for a specific trade. Sums to the total model output. Used to explain exactly why the model liked or disliked a trade setup."},
+    {"name": "Meta-labeling sweep",  "formula": "Metrics(trades where P(win) > threshold)", "units": "-", "interpretation": "Simulates applying the classifier as a filter on the base strategy. If the filtered strategy's Calmar exceeds the base Calmar by a wide margin, the base rules are leaving money on the table."},
+    {"name": "HDBSCAN Clusters",     "formula": "density-based spatial clustering", "units": "-", "interpretation": "Unsupervised clustering of trades based on their entry features. Reveals natural 'trade types' (e.g. morning reversal, afternoon trend). If one cluster holds all the losses, it is a prime filter candidate."},
 ]
 
 

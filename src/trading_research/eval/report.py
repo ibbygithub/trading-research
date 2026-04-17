@@ -252,6 +252,149 @@ def generate_report(run_dir: Path, version: str = "v2") -> ReportPaths:
         sections["s24_wf"] = _build_walkforward_section(run_dir, _fig_to_html)
 
     # --- Render template ---
+
+    if version == "v3":
+        # Copy V2 sections first so they are available in V3
+        net_pnl = trades["net_pnl_usd"].values if not trades.empty else np.array([])
+        ci_data = summary.get("confidence_intervals", {})
+        sections["s16_ci_metrics"] = _build_ci_metrics(summary, ci_data)
+        sections["s17_dsr"] = _build_dsr_section(summary, net_pnl, run_dir, trades)
+        sections["s18_risk"] = _build_extended_risk(equity_series, net_pnl)
+        sections["s19_drawdowns"] = _build_dd_forensics(equity_series, trades)
+        sections["s20_underwater"] = _build_underwater_section(equity_series, _fig_to_html)
+        sections["s21_distribution"] = _build_distribution_section(net_pnl, trades, _fig_to_html)
+        sections["s22_subperiod"] = _build_subperiod_section(trades, equity_series, _fig_to_html)
+        sections["s23_mc"] = _build_monte_carlo_section(trades, _fig_to_html)
+        sections["s24_wf"] = _build_walkforward_section(run_dir, _fig_to_html)
+
+        import yaml
+        from trading_research.eval.regimes import tag_regimes
+        from trading_research.eval.regime_metrics import breakdown_by_regime
+        from trading_research.eval.classifier import train_winner_classifier
+        from trading_research.eval.shap_analysis import compute_shap_per_trade
+        from trading_research.eval.meta_label import evaluate_meta_labeling
+        from trading_research.eval.event_study import event_study
+        from trading_research.eval.clustering import cluster_trades
+
+        try:
+            with open("configs/calendars/fomc_dates.yaml") as f:
+                fomc_dates = yaml.safe_load(f)["fomc_dates"]
+        except Exception:
+            fomc_dates = []
+            
+        tagged_trades = tag_regimes(trades, fomc_dates)
+        
+        def _tbl(dict_list):
+            if not dict_list: return "<p>No data</p>"
+            df = pd.DataFrame(dict_list)
+            for c in ["total_pnl", "avg_pnl"]:
+                if c in df: df[c] = df[c].map(lambda x: f"${x:,.0f}")
+            for c in ["win_rate", "calmar", "sharpe", "trades_per_week"]:
+                if c in df: df[c] = df[c].map(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+            return df.to_html(index=False, classes="report-table", border=0)
+
+        def _regime_section(regime_col, title):
+            data = breakdown_by_regime(tagged_trades, regime_col)
+            html = _tbl(data)
+            if data:
+                df = pd.DataFrame(data)
+                fig = go.Figure(go.Bar(x=df["cluster"] if "cluster" in df else df["regime"], y=df["total_pnl"]))
+                fig.update_layout(title=f"{title} - Total PnL", template="plotly_dark", height=300)
+                html += _fig_to_html(fig)
+            return {"html": html}
+
+        sections["s25_regime_vol"] = _regime_section("vol_regime", "Volatility Regime")
+        sections["s26_regime_trend"] = _regime_section("trend_regime", "Trend Regime")
+        sections["s27_regime_fomc"] = _regime_section("fomc_regime", "FOMC Cycle")
+        
+        cls_res = train_winner_classifier(tagged_trades)
+        if "error" not in cls_res:
+            imp_df = cls_res["permutation_importance"]
+            fig_imp = go.Figure(go.Bar(
+                x=imp_df["importance"], 
+                y=imp_df["feature"], 
+                orientation="h",
+                error_x=dict(type='data', array=imp_df.get('importance_ci', None))
+            ))
+            fig_imp.update_layout(title="Permutation Importance (with 95% CI)", template="plotly_dark", height=400)
+            sections["s30_importance_html"] = _fig_to_html(fig_imp)
+            
+            pdp_data = cls_res.get("pdp_data", {})
+            if pdp_data:
+                from plotly.subplots import make_subplots
+                valid_feats = [f for f in pdp_data.keys() if "error" not in pdp_data[f]]
+                if valid_feats:
+                    fig_pdp = make_subplots(rows=1, cols=len(valid_feats), subplot_titles=valid_feats)
+                    for i, feat in enumerate(valid_feats):
+                        fig_pdp.add_trace(go.Scatter(
+                            x=pdp_data[feat]["values"],
+                            y=pdp_data[feat]["average"],
+                            mode="lines"
+                        ), row=1, col=i+1)
+                    fig_pdp.update_layout(title="Partial Dependence Plots (Top 5)", template="plotly_dark", height=300, showlegend=False)
+                    sections["s31_pdp_html"] = _fig_to_html(fig_pdp)
+                else:
+                    sections["s31_pdp_html"] = "<p>No valid PDP data.</p>"
+            else:
+                sections["s31_pdp_html"] = ""
+            
+            X_train = cls_res["X_train"]
+            shap_df = compute_shap_per_trade(cls_res["model"], X_train)
+            
+            enriched = tagged_trades.loc[X_train.index].copy()
+            enriched = pd.concat([enriched, shap_df], axis=1)
+            
+            scols = ["entry_ts", "net_pnl_usd", "shap_top_pos_1", "shap_top_pos_2", "shap_top_neg_1", "shap_top_neg_2"]
+            av_cols = [c for c in scols if c in enriched.columns]
+            
+            w = enriched.sort_values("net_pnl_usd", ascending=False).head(20)[av_cols]
+            l = enriched.sort_values("net_pnl_usd", ascending=True).head(20)[av_cols]
+            sections["s32_shap_winners_html"] = w.to_html(index=False, classes="report-table", border=0)
+            sections["s32_shap_losers_html"] = l.to_html(index=False, classes="report-table", border=0)
+            
+            meta_res = evaluate_meta_labeling(tagged_trades, X_train.index, cls_res["oof_preds"])
+            if "error" not in meta_res:
+                df_meta = meta_res["sweep_data"]
+                fig_meta = go.Figure(go.Scatter(x=df_meta["threshold"], y=df_meta["calmar"], mode="lines+markers"))
+                fig_meta.update_layout(title="Meta-Labeling Threshold vs Calmar", template="plotly_dark", height=300)
+                sections["s33_meta_label"] = {
+                    "interpretation": meta_res["interpretation"],
+                    "html": _fig_to_html(fig_meta)
+                }
+            else:
+                sections["s33_meta_label"] = {"interpretation": "", "html": ""}
+                
+            clust_res = cluster_trades(tagged_trades, X_train)
+            if "error" not in clust_res:
+                html_clust = _tbl(clust_res["summary"])
+                if "umap_x" in clust_res:
+                    df_umap = pd.DataFrame({
+                        "x": clust_res["umap_x"],
+                        "y": clust_res["umap_y"],
+                        "cluster": [str(lbl) for lbl in clust_res["labels"]]
+                    })
+                    fig_umap = px.scatter(df_umap, x="x", y="y", color="cluster", title="UMAP Trade Clusters")
+                    fig_umap.update_layout(template="plotly_dark", height=400)
+                    html_clust += _fig_to_html(fig_umap)
+                sections["s35_clustering"] = {"html": html_clust}
+            else:
+                sections["s35_clustering"] = {"html": ""}
+        else:
+            sections["s30_importance_html"] = "<p>Not enough data to train classifier.</p>"
+            sections["s31_pdp_html"] = ""
+            sections["s32_shap_winners_html"] = ""
+            sections["s32_shap_losers_html"] = ""
+            sections["s33_meta_label"] = {"interpretation": "", "html": ""}
+            sections["s35_clustering"] = {"html": ""}
+            
+        ev_res = event_study(tagged_trades, fomc_dates)
+        if "error" not in ev_res:
+            fig_ev = go.Figure(go.Scatter(x=ev_res["curve_x"], y=ev_res["curve_y"], mode="lines"))
+            fig_ev.update_layout(title="Average Cumulative PnL around FOMC", template="plotly_dark", height=300)
+            sections["s34_event_fomc_html"] = _fig_to_html(fig_ev)
+        else:
+            sections["s34_event_fomc_html"] = "<p>Event study error</p>"
+
     env = Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
         autoescape=False,

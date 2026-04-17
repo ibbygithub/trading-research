@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ meta.strategy_id }} | Backtest Report v2 | {{ meta.run_ts }}</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --yellow: #eab308;
+    --purple: #a855f7;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 24px;
+  }
+
+  h1 { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  h2 { font-size: 15px; font-weight: 600; color: #cbd5e1; margin: 28px 0 12px;
+       padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 18px 0 8px; }
+  p  { color: #94a3b8; margin-bottom: 8px; }
+
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+
+  .section[id]::before {
+    content: '';
+    display: block;
+    margin-top: -80px;
+    padding-top: 80px;
+  }
+
+  .header-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .header-item { display: flex; flex-direction: column; }
+  .header-item .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .header-item .value { font-family: var(--font-mono); font-size: 13px; color: #f1f5f9; }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .metric-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .metric-card.highlight { border-color: var(--yellow); }
+  .metric-card .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .metric-card .metric-value { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: #f1f5f9; }
+  .metric-card.highlight .metric-value { color: var(--yellow); }
+  .metric-card .metric-ci { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    margin-top: 8px;
+    overflow-x: auto;
+    display: block;
+  }
+  .report-table th {
+    background: var(--bg);
+    color: var(--muted);
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .report-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid rgba(51,65,85,0.5);
+    white-space: nowrap;
+  }
+  .report-table tr:hover td { background: rgba(59,130,246,0.05); }
+
+  .exit-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .exit-table th {
+    background: var(--bg); color: var(--muted);
+    padding: 6px 12px; text-align: left;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+  .exit-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid rgba(51,65,85,0.5);
+    font-family: var(--font-mono);
+  }
+  .exit-table tr:hover td { background: rgba(59,130,246,0.05); }
+
+  .plotly-chart { width: 100%; margin-top: 12px; }
+
+  .provenance pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #94a3b8;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    margin-top: 6px;
+  }
+
+  .toc {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 11px;
+    width: 190px;
+    z-index: 100;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: none;
+  }
+  @media (min-width: 1400px) { .toc { display: block; } }
+  .toc a { display: block; color: var(--muted); text-decoration: none; padding: 2px 0; }
+  .toc a:hover { color: var(--blue); }
+  .toc .toc-title { color: #f1f5f9; font-weight: 600; margin-bottom: 6px; font-size: 12px; }
+  .toc .toc-group { color: var(--blue); font-size: 10px; text-transform: uppercase;
+                     letter-spacing: 0.06em; margin: 8px 0 3px; }
+
+  .tag {
+    display: inline-block;
+    background: rgba(59,130,246,0.15);
+    border: 1px solid rgba(59,130,246,0.3);
+    color: var(--blue);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    margin-left: 8px;
+  }
+
+  .risk-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .risk-table td { padding: 6px 12px; border-bottom: 1px solid rgba(51,65,85,0.4);
+                    font-family: var(--font-mono); font-size: 12px; }
+  .risk-table td:first-child { color: var(--muted); font-size: 11px; width: 200px; }
+  .risk-table td:last-child { color: #94a3b8; font-size: 11px; }
+  .risk-table tr:hover td { background: rgba(59,130,246,0.04); }
+
+  .dsr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .dsr-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .dsr-card .dsr-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .dsr-card .dsr-value { font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: #f1f5f9; }
+
+  .alert {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: #fca5a5;
+    font-size: 12px;
+    margin-top: 10px;
+  }
+  .alert-yellow {
+    background: rgba(234,179,8,0.08);
+    border-color: rgba(234,179,8,0.3);
+    color: #fde047;
+  }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-title">Sections</div>
+  <div class="toc-group">Trader's Desk</div>
+  <a href="#s1">1. Header</a>
+  <a href="#s2">2. Metrics</a>
+  <a href="#s3">3. Equity</a>
+  <a href="#s4">4. Top 20</a>
+  <a href="#s5">5. Time-in-trade</a>
+  <a href="#s6">6. Exit reasons</a>
+  <a href="#s7">7. R distribution</a>
+  <a href="#s8">8. MAE / MFE</a>
+  <a href="#s9">9. Rolling E[R]</a>
+  <a href="#s10">10. Streaks</a>
+  <a href="#s11">11. Heatmaps</a>
+  <a href="#s12">12. Calendar</a>
+  <a href="#s13">13. Cost sweep</a>
+  <a href="#s14">14. Context</a>
+  <a href="#s15">15. Provenance</a>
+  <div class="toc-group">Risk Officer</div>
+  <a href="#s16">16. CIs</a>
+  <a href="#s17">17. DSR / PSR</a>
+  <a href="#s18">18. Risk metrics</a>
+  <a href="#s19">19. Drawdowns</a>
+  <a href="#s20">20. Underwater</a>
+  <a href="#s21">21. Distribution</a>
+  <a href="#s22">22. Subperiod</a>
+  <a href="#s23">23. Monte Carlo</a>
+  <a href="#s24">24. Walk-forward</a>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SECTIONS 1–15 (Trader's Desk — unchanged from v1) -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+
+<div id="s1" class="section">
+  <h1>{{ meta.strategy_id }}
+    <span class="tag">{{ meta.feature_set }}</span>
+    <span class="tag">{{ meta.git_sha }}</span>
+    <span class="tag">v2</span>
+  </h1>
+  <p style="color: var(--muted); margin-top: 4px;">Backtest Report &mdash; generated {{ meta.run_ts }}</p>
+  <div class="header-grid">
+    <div class="header-item"><span class="label">Run ID</span><span class="value">{{ meta.run_id }}</span></div>
+    <div class="header-item"><span class="label">Symbol</span><span class="value">{{ meta.symbol }}</span></div>
+    <div class="header-item"><span class="label">Date range</span><span class="value">{{ meta.date_range }}</span></div>
+    <div class="header-item"><span class="label">Feature set</span><span class="value">{{ meta.feature_set }}</span></div>
+    <div class="header-item"><span class="label">Git SHA</span><span class="value">{{ meta.git_sha }}</span></div>
+    <div class="header-item"><span class="label">Cost / round trip</span><span class="value">${{ meta.cost_per_trade_usd }}</span></div>
+  </div>
+</div>
+
+<div id="s2" class="section">
+  <h2>Headline Metrics</h2>
+  <p style="color: var(--muted); font-size: 11px;">Headline metric: <strong>Calmar</strong>. Bootstrap 90% CIs in §16.</p>
+  <div class="metrics-grid">
+    {% for m in sections.s2_metrics %}
+    <div class="metric-card{% if m.highlight %} highlight{% endif %}">
+      <div class="metric-label">{{ m.label }}</div>
+      <div class="metric-value">{{ m.value }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div id="s3" class="section">
+  <h2>Equity Curve &amp; Drawdown</h2>
+  <div class="plotly-chart">{{ sections.s3_equity_html | safe }}</div>
+</div>
+
+<div id="s4" class="section">
+  <h2>Top 20 Tables</h2>
+  {{ sections.s4_top20_html | safe }}
+</div>
+
+<div id="s5" class="section">
+  <h2>Time-in-Trade Analysis</h2>
+  <div class="plotly-chart">{{ sections.s5_time_html | safe }}</div>
+</div>
+
+<div id="s6" class="section">
+  <h2>Exit-Reason Breakdown</h2>
+  {% if sections.s6_exit_table %}
+  <table class="exit-table">
+    <thead>
+      <tr>
+        <th>Exit Reason</th><th>Count</th><th>Total P&amp;L</th><th>Avg P&amp;L</th>
+        <th>Win Rate</th><th>Median Hold (bars)</th><th>Median MAE_R</th><th>Median MFE_R</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in sections.s6_exit_table %}
+      <tr>
+        <td>{{ row.exit_reason }}</td><td>{{ row.count }}</td>
+        <td>{{ row.total_pnl }}</td><td>{{ row.avg_pnl }}</td>
+        <td>{{ row.win_rate }}</td><td>{{ row.median_hold_bars }}</td>
+        <td>{{ row.median_mae_r }}</td><td>{{ row.median_mfe_r }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p>Exit reason data not available.</p>{% endif %}
+</div>
+
+<div id="s7" class="section">
+  <h2>R-Multiple Distribution</h2>
+  <div class="plotly-chart">{{ sections.s7_r_html | safe }}</div>
+</div>
+
+<div id="s8" class="section">
+  <h2>MAE / MFE Forensics</h2>
+  <div class="plotly-chart">{{ sections.s8_mae_mfe_html | safe }}</div>
+  <h3>Gave-Back Winners (MFE_R &gt; 1.0, closed at loss)</h3>
+  {{ sections.s8_giveback_html | safe }}
+</div>
+
+<div id="s9" class="section">
+  <h2>Rolling Expectancy</h2>
+  <div class="plotly-chart">{{ sections.s9_rolling_html | safe }}</div>
+</div>
+
+<div id="s10" class="section">
+  <h2>Streak Distributions</h2>
+  <div class="plotly-chart">{{ sections.s10_streak_html | safe }}</div>
+</div>
+
+<div id="s11" class="section">
+  <h2>Day-of-Week &times; Hour Heatmaps (America/New_York)</h2>
+  <div class="plotly-chart">{{ sections.s11_heatmap_html | safe }}</div>
+</div>
+
+<div id="s12" class="section">
+  <h2>Monthly &amp; Yearly P&amp;L</h2>
+  {{ sections.s12_calendar_html | safe }}
+</div>
+
+<div id="s13" class="section">
+  <h2>Cost Sensitivity Sweep (1× / 2× / 3× cost)</h2>
+  <div class="plotly-chart">{{ sections.s13_cost_html | safe }}</div>
+</div>
+
+<div id="s14" class="section">
+  <h2>Market Context at Entry</h2>
+  <div class="plotly-chart">{{ sections.s14_context_html | safe }}</div>
+</div>
+
+<div id="s15" class="section provenance">
+  <h2>Run Provenance</h2>
+  <div class="header-grid" style="margin-bottom: 16px;">
+    <div class="header-item"><span class="label">Git SHA</span><span class="value">{{ sections.s15_provenance.git_sha }}</span></div>
+    <div class="header-item"><span class="label">Python</span><span class="value">{{ sections.s15_provenance.python_version }}</span></div>
+    <div class="header-item"><span class="label">Feature set</span><span class="value">{{ sections.s15_provenance.feature_set }}</span></div>
+  </div>
+  <h3>Strategy Config (YAML)</h3>
+  <pre>{{ sections.s15_provenance.strategy_yaml }}</pre>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SECTIONS 16–24  (Risk Officer's View — session 11) -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+
+<!-- SECTION 16 — Confidence Intervals on Headline Metrics -->
+<div id="s16" class="section">
+  <h2>16. Confidence Intervals on Headline Metrics
+    <span class="tag">bootstrap 90% CI</span>
+  </h2>
+  <p style="color: var(--muted); font-size: 11px;">
+    Bootstrap 90% CIs from 1,000 trade-level resamples. Wide CIs mean the point estimate
+    is unreliable — look at the lower bound as the pessimistic expectation.
+  </p>
+  <div class="metrics-grid">
+    {% for m in sections.s16_ci_metrics %}
+    <div class="metric-card{% if m.highlight %} highlight{% endif %}">
+      <div class="metric-label">{{ m.label }}</div>
+      <div class="metric-value">{{ m.value }}</div>
+      {% if m.ci %}
+      <div class="metric-ci">90% CI: {{ m.ci }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- SECTION 17 — Deflated Sharpe / PSR -->
+<div id="s17" class="section">
+  <h2>17. Probabilistic &amp; Deflated Sharpe Ratio
+    <span class="tag">multiple-testing correction</span>
+  </h2>
+  <p style="color: var(--muted); font-size: 11px;">
+    Deflated Sharpe (DSR) adjusts for the number of strategy variants tested.
+    If you ran 30 variants and picked the best, DSR is the honest out-of-sample
+    probability that the edge is real. PSR is the probability the true Sharpe
+    exceeds a benchmark without the multiple-testing correction.
+  </p>
+  {% set d = sections.s17_dsr %}
+  <div class="dsr-grid">
+    <div class="dsr-card">
+      <div class="dsr-label">Raw Sharpe</div>
+      <div class="dsr-value">{{ d.raw_sharpe }}</div>
+    </div>
+    <div class="dsr-card">
+      <div class="dsr-label">Deflated Sharpe (DSR)</div>
+      <div class="dsr-value">{{ d.dsr }}</div>
+    </div>
+    <div class="dsr-card">
+      <div class="dsr-label">PSR vs SR=0</div>
+      <div class="dsr-value">{{ d.psr_vs_0 }}</div>
+    </div>
+    <div class="dsr-card">
+      <div class="dsr-label">PSR vs SR=1</div>
+      <div class="dsr-value">{{ d.psr_vs_1 }}</div>
+    </div>
+    <div class="dsr-card">
+      <div class="dsr-label">Trials recorded (n_trials)</div>
+      <div class="dsr-value">{{ d.n_trials }}</div>
+    </div>
+    <div class="dsr-card">
+      <div class="dsr-label">Observations (n_obs)</div>
+      <div class="dsr-value">{{ d.n_obs }}</div>
+    </div>
+    <div class="dsr-card">
+      <div class="dsr-label">Skewness</div>
+      <div class="dsr-value">{{ d.skewness }}</div>
+    </div>
+    <div class="dsr-card">
+      <div class="dsr-label">Excess Kurtosis</div>
+      <div class="dsr-value">{{ d.kurtosis }}</div>
+    </div>
+  </div>
+  <p style="margin-top: 14px; color: #94a3b8; font-style: italic;">{{ d.interpretation }}</p>
+</div>
+
+<!-- SECTION 18 — Extended Risk Metrics -->
+<div id="s18" class="section">
+  <h2>18. Extended Risk Metrics</h2>
+  <p style="color: var(--muted); font-size: 11px;">
+    All metrics derived from the equity curve or return distribution.
+    Omega and Gain-to-Pain use the full distribution without normality assumptions.
+  </p>
+  <table class="risk-table">
+    <tbody>
+      {% for row in sections.s18_risk %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td><strong style="font-family: var(--font-mono);">{{ row.value }}</strong></td>
+        <td>{{ row.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- SECTION 19 — Drawdown Forensics -->
+<div id="s19" class="section">
+  <h2>19. Drawdown Forensics
+    <span class="tag">threshold &gt;1%</span>
+  </h2>
+  <p style="color: var(--muted); font-size: 11px;">
+    Every distinct drawdown episode exceeding 1% of the running equity peak.
+    recovery_date is NaT when the strategy has not yet recovered.
+  </p>
+  <p><strong>{{ sections.s19_drawdowns.count }}</strong> drawdown episodes cataloged.</p>
+  {{ sections.s19_drawdowns.html | safe }}
+</div>
+
+<!-- SECTION 20 — Time Underwater -->
+<div id="s20" class="section">
+  <h2>20. Time Underwater</h2>
+  {% set uw = sections.s20_underwater %}
+  <div class="header-grid" style="margin-top: 8px; margin-bottom: 16px;">
+    <div class="header-item">
+      <span class="label">% time below peak</span>
+      <span class="value" style="font-family: var(--font-mono); font-size: 18px; color: var(--red);">{{ uw.pct_str }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Longest run (calendar days)</span>
+      <span class="value" style="font-family: var(--font-mono); font-size: 18px;">{{ uw.longest_days }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Distinct underwater runs</span>
+      <span class="value" style="font-family: var(--font-mono); font-size: 18px;">{{ uw.n_runs }}</span>
+    </div>
+  </div>
+  <div class="plotly-chart">{{ uw.chart_html | safe }}</div>
+</div>
+
+<!-- SECTION 21 — Return Distribution Diagnostics -->
+<div id="s21" class="section">
+  <h2>21. Return Distribution Diagnostics</h2>
+  {% set ds = sections.s21_distribution %}
+  {% if ds.normality_flag %}
+  <div class="alert">⚠ {{ ds.normality_warning }}</div>
+  {% else %}
+  <div class="alert alert-yellow">{{ ds.normality_warning }}</div>
+  {% endif %}
+
+  <div class="header-grid" style="margin-top: 12px;">
+    <div class="header-item">
+      <span class="label">Observations</span>
+      <span class="value" style="font-family: var(--font-mono);">{{ ds.stats.count }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Skewness</span>
+      <span class="value" style="font-family: var(--font-mono);">{{ "%.3f" | format(ds.stats.skewness) if ds.stats.skewness == ds.stats.skewness else "N/A" }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Excess Kurtosis</span>
+      <span class="value" style="font-family: var(--font-mono);">{{ "%.3f" | format(ds.stats.kurtosis) if ds.stats.kurtosis == ds.stats.kurtosis else "N/A" }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Jarque-Bera p-value</span>
+      <span class="value" style="font-family: var(--font-mono);">{{ "%.4f" | format(ds.stats.jb_pvalue) if ds.stats.jb_pvalue == ds.stats.jb_pvalue else "N/A" }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Ljung-Box p-value</span>
+      <span class="value" style="font-family: var(--font-mono);">{{ ds.lb_pvalue }}</span>
+    </div>
+  </div>
+
+  <h3>Return Distribution</h3>
+  <div class="plotly-chart">{{ ds.hist_html | safe }}</div>
+
+  <h3>Q-Q Plot vs Normal</h3>
+  <div class="plotly-chart">{{ ds.qq_html | safe }}</div>
+
+  <h3>Autocorrelation of Trade Returns</h3>
+  <div class="plotly-chart">{{ ds.acf_html | safe }}</div>
+</div>
+
+<!-- SECTION 22 — Subperiod Stability -->
+<div id="s22" class="section">
+  <h2>22. Subperiod Stability
+    <span class="tag">yearly</span>
+  </h2>
+  {% set sp = sections.s22_subperiod %}
+  {% if sp.degradation_flag %}
+  <div class="alert">⚠ {{ sp.degradation_message }}</div>
+  {% endif %}
+  <div class="plotly-chart">{{ sp.chart_html | safe }}</div>
+  <h3>Year-by-Year Metrics</h3>
+  {{ sp.html | safe }}
+</div>
+
+<!-- SECTION 23 — Monte Carlo Trade-Order Shuffle -->
+<div id="s23" class="section">
+  <h2>23. Monte Carlo Trade-Order Shuffle
+    <span class="tag">1,000 iterations</span>
+  </h2>
+  <p style="color: var(--muted); font-size: 11px;">
+    Resamples trade order 1,000 times preserving individual P&amp;Ls.
+    Measures how much of the historical equity path is structural vs luck.
+  </p>
+  {% set mc = sections.s23_mc %}
+  {% if mc.n_iter > 0 %}
+  <div class="header-grid" style="margin-top: 10px; margin-bottom: 16px;">
+    <div class="header-item">
+      <span class="label">Actual max DD (shuffle percentile)</span>
+      <span class="value" style="font-family: var(--font-mono);">{{ mc.actual_dd_pctile }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Actual Calmar (shuffle percentile)</span>
+      <span class="value" style="font-family: var(--font-mono);">{{ mc.actual_calmar_pctile }}</span>
+    </div>
+    <div class="header-item">
+      <span class="label">Iterations</span>
+      <span class="value" style="font-family: var(--font-mono);">{{ mc.n_iter }}</span>
+    </div>
+  </div>
+  <p style="font-style: italic; color: #94a3b8;">{{ mc.interpretation }}</p>
+  <h3>Equity Fan Chart</h3>
+  <div class="plotly-chart">{{ mc.fan_html | safe }}</div>
+  <h3>Max Drawdown Distribution</h3>
+  <div class="plotly-chart">{{ mc.dd_hist_html | safe }}</div>
+  <h3>Calmar Distribution</h3>
+  <div class="plotly-chart">{{ mc.calmar_hist_html | safe }}</div>
+  {% else %}
+  <p>No trades available for Monte Carlo analysis.</p>
+  {% endif %}
+</div>
+
+<!-- SECTION 24 — Walk-Forward Results -->
+<div id="s24" class="section">
+  <h2>24. Walk-Forward Robustness</h2>
+  {% set wf = sections.s24_wf %}
+  {% if wf.available %}
+  <p style="color: var(--muted); font-size: 11px;">
+    Purged walk-forward: {{ wf.aggregated.n_folds }} folds.
+    Total OOS trades: {{ wf.aggregated.total_trades }}.
+  </p>
+  <h3>Per-Fold OOS Metrics</h3>
+  {{ wf.table_html | safe }}
+  {% if wf.equity_html %}
+  <h3>OOS Equity Curve</h3>
+  <div class="plotly-chart">{{ wf.equity_html | safe }}</div>
+  {% endif %}
+  {% else %}
+  <div class="alert alert-yellow">
+    Walk-forward results not available for this run.
+    Run: <code>uv run trading-research walkforward --strategy &lt;config&gt;</code>
+    to generate them, then re-run the report.
+  </div>
+  {% endif %}
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SECTIONS 25–35  (Machine Learning & Regime Analytics — session 12) -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+
+<div id="s25" class="section">
+  <h2>25. Regime Breakdown — Volatility</h2>
+  {{ sections.s25_regime_vol.html | safe }}
+</div>
+
+<div id="s26" class="section">
+  <h2>26. Regime Breakdown — Trend</h2>
+  {{ sections.s26_regime_trend.html | safe }}
+</div>
+
+<div id="s27" class="section">
+  <h2>27. Regime Breakdown — FOMC Cycle</h2>
+  {{ sections.s27_regime_fomc.html | safe }}
+</div>
+
+<div id="s30" class="section">
+  <h2>30. Feature Importance (Permutation)</h2>
+  <div class="plotly-chart">{{ sections.s30_importance_html | safe }}</div>
+</div>
+
+<div id="s32" class="section">
+  <h2>32. SHAP-Enriched Trade Tables</h2>
+  <h3>Top 10 Winners</h3>
+  {{ sections.s32_shap_winners_html | safe }}
+  <h3>Top 10 Losers</h3>
+  {{ sections.s32_shap_losers_html | safe }}
+</div>
+
+<div id="s33" class="section">
+  <h2>33. Meta-Labeling Readout</h2>
+  <p>{{ sections.s33_meta_label.interpretation }}</p>
+  <div class="plotly-chart">{{ sections.s33_meta_label.html | safe }}</div>
+</div>
+
+<div id="s34" class="section">
+  <h2>34. Event Studies — FOMC</h2>
+  <div class="plotly-chart">{{ sections.s34_event_fomc_html | safe }}</div>
+</div>
+
+<div id="s35" class="section">
+  <h2>35. Trade Clusters (HDBSCAN)</h2>
+  {{ sections.s35_clustering.html | safe }}
+</div>
+
+</body>
+
+</html>

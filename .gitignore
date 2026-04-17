@@ -171,3 +171,9 @@ $RECYCLE.BIN/
 
 # Allow small fixture parquets under tests/ (explicit opt-in)
 !tests/**/*.parquet
+
+# -----------------------------------------------------------------------------
+# Scratch / Temporary files
+# -----------------------------------------------------------------------------
+patch_*.py
+pytest_out.txt
