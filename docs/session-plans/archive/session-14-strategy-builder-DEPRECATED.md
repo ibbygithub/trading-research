@@ -1,6 +1,13 @@
 # Session 14: The Dynamic Strategy Builder
 
-**Status:** Planning Phase
+**Status:** DEPRECATED  
+**superseded_by:** `docs/strategy/master-plan-2026-04.md` (on `session/14-governance` branch)  
+**realized_by:** commit `de03c04` — Antigravity Sessions 11–13 GUI builder (`src/trading_research/gui/`)  
+**archived_by:** Session 15 (`session/15-repo-census-redo`) — `git mv` from `docs/session-plans/session-14-plan.md`
+
+---
+
+**Status:** Planning Phase (original)
 **Objective:** Transition the Dash GUI from a static script runner into an interactive parameter sandbox without introducing look-ahead bias or overfitting vectors.
 
 ---
