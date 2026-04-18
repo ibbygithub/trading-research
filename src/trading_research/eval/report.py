@@ -1081,27 +1081,27 @@ def _build_dsr_section(
     skew = kurtosis = float("nan")
     if len(net_pnl) >= 4:
         skew = float(scipy_stats.skew(net_pnl[np.isfinite(net_pnl)]))
-        kurtosis = float(scipy_stats.kurtosis(net_pnl[np.isfinite(net_pnl)]))
+        kurtosis = float(scipy_stats.kurtosis(net_pnl[np.isfinite(net_pnl)], fisher=False))
 
     dsr = deflated_sharpe_ratio(
         sharpe=sharpe,
         n_obs=n_obs,
         n_trials=n_trials,
         skewness=skew if math.isfinite(skew) else 0.0,
-        kurtosis=kurtosis if math.isfinite(kurtosis) else 0.0,
+        kurtosis_pearson=kurtosis if math.isfinite(kurtosis) else 3.0,
     )
     psr_0 = probabilistic_sharpe_ratio(
         sharpe=sharpe,
         n_obs=n_obs,
         skewness=skew if math.isfinite(skew) else 0.0,
-        kurtosis=kurtosis if math.isfinite(kurtosis) else 0.0,
+        kurtosis_pearson=kurtosis if math.isfinite(kurtosis) else 3.0,
         sr_benchmark=0.0,
     )
     psr_1 = probabilistic_sharpe_ratio(
         sharpe=sharpe,
         n_obs=n_obs,
         skewness=skew if math.isfinite(skew) else 0.0,
-        kurtosis=kurtosis if math.isfinite(kurtosis) else 0.0,
+        kurtosis_pearson=kurtosis if math.isfinite(kurtosis) else 3.0,
         sr_benchmark=1.0,
     )
 
