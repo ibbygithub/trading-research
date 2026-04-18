@@ -1,0 +1,73 @@
+commit de03c0485caba7dbbbcaf05107563a0496224f41
+Author: IbbyTech <121737116+ibbygithub@users.noreply.github.com>
+Date:   Fri Apr 17 04:30:26 2026 -0700
+
+    feat(eval): implement portfolio analytics suite and GUI builder
+    
+    - Add correlation, drawdown attribution, and sizing modules
+    - Create Jinja2 HTML templates for portfolio evaluation
+    - Implement Dash GUI with interactive strategy builder
+    - Expand unit test coverage across evaluation modules
+    - Update feature manifests and uv dependencies
+
+ .gitignore                                         |   6 +
+ configs/broker_margins.yaml                        |  58 ++
+ configs/calendars/fomc_dates.yaml                  |  32 +
+ ...-v1_2010-01-03_2026-04-10.parquet.manifest.json |  42 +-
+ ...-v1_2010-01-03_2026-04-10.parquet.manifest.json | 148 +++++
+ ...-v1_2010-01-03_2026-04-10.parquet.manifest.json |  42 +-
+ ...-v1_2010-01-03_2026-04-10.parquet.manifest.json | 148 +++++
+ docs/session-plans/session-14-plan.md              |  48 ++
+ pyproject.toml                                     |   6 +
+ src/trading_research/backtest/walkforward.py       | 395 ++++--------
+ src/trading_research/cli/main.py                   |  33 +-
+ src/trading_research/eval/capital.py               |  61 ++
+ src/trading_research/eval/classifier.py            | 148 +++++
+ src/trading_research/eval/clustering.py            |  78 +++
+ src/trading_research/eval/correlation.py           |  54 ++
+ src/trading_research/eval/data_dictionary.py       |  12 +
+ .../eval/data_dictionary_portfolio.py              |  21 +
+ src/trading_research/eval/distribution.py          | 283 ++-------
+ src/trading_research/eval/drawdowns.py             | 299 ++-------
+ src/trading_research/eval/event_study.py           |  67 +++
+ src/trading_research/eval/kelly.py                 |  56 ++
+ src/trading_research/eval/meta_label.py            |  78 +++
+ src/trading_research/eval/monte_carlo.py           | 237 ++------
+ src/trading_research/eval/portfolio.py             |  76 +++
+ src/trading_research/eval/portfolio_drawdown.py    |  81 +++
+ src/trading_research/eval/portfolio_report.py      | 147 +++++
+ src/trading_research/eval/regime_metrics.py        |  83 +++
+ src/trading_research/eval/regimes.py               |  91 +++
+ src/trading_research/eval/report.py                | 143 +++++
+ src/trading_research/eval/shap_analysis.py         |  74 +++
+ src/trading_research/eval/sizing.py                |  87 +++
+ src/trading_research/eval/stats.py                 | 421 +++----------
+ src/trading_research/eval/subperiod.py             | 213 +------
+ .../eval/templates/portfolio_report.html.j2        |  81 +++
+ .../eval/templates/report_v3.html.j2               | 667 +++++++++++++++++++++
+ src/trading_research/eval/trials.py                | 162 ++---
+ src/trading_research/gui/__init__.py               |   1 +
+ src/trading_research/gui/app.py                    | 112 ++++
+ src/trading_research/gui/callbacks.py              | 100 +++
+ src/trading_research/gui/schemas.py                |  11 +
+ src/trading_research/indicators/features.py        |  10 +-
+ src/trading_research/indicators/vwap.py            |  72 ++-
+ tests/indicators/test_vwap.py                      |  20 +-
+ tests/test_classifier.py                           |  18 +
+ tests/test_clustering.py                           |  16 +
+ tests/test_correlation.py                          |  21 +
+ tests/test_distribution.py                         | 185 +-----
+ tests/test_drawdowns.py                            | 191 +-----
+ tests/test_event_study.py                          |  13 +
+ tests/test_meta_label.py                           |  14 +
+ tests/test_monte_carlo.py                          | 121 +---
+ tests/test_portfolio.py                            |  37 ++
+ tests/test_regimes.py                              |  19 +
+ tests/test_shap.py                                 |  17 +
+ tests/test_sizing.py                               |  22 +
+ tests/test_stats.py                                | 329 ++--------
+ tests/test_subperiod.py                            | 138 +----
+ tests/test_trials.py                               |  13 +
+ tests/test_walkforward.py                          | 102 +---
+ uv.lock                                            | 433 ++++++++++++-
+ 60 files changed, 4057 insertions(+), 2636 deletions(-)
