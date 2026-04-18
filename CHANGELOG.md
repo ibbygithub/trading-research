@@ -5,40 +5,29 @@ Format: `[SESSION-NN] YYYY-MM-DD — Session Name`
 
 ---
 
-## [SESSION-14] 2026-04-17 — Repo Census, Pipeline Audit, Governance Bootstrap
+## [SESSION-14] 2026-04-17 — Governance Bootstrap
 
-### Census summary
+> **⚠️ Reconciliation note (Session 15, 2026-04-17):** The Session 14 repo census
+> and pipeline robustness audit were run against an incomplete tree (missing 15 eval
+> modules and 4 GUI modules from Antigravity Sessions 11–13). Those findings have been
+> superseded by the Session 15 redo. Census and pipeline verdict entries below are
+> **STRUCK** — do not rely on them. Governance artifacts (AGENTS.md, handoff docs,
+> ADR, master plan, skills) were rescued from the archive tag and remain valid.
+> See `outputs/validation/session-15-repo-census.md` and
+> `outputs/validation/session-15-pipeline-robustness.md` for correct findings.
 
-| Category | Count |
-|---|---|
-| Canonical source directories | 10 |
-| Generated/excluded (data, .venv, runs) | 3 |
-| Archive (Legacy) | 1 |
-| Experimental (notebooks) | 1 |
-| Hybrid (data/, outputs/) | 2 |
-| Anomalous path-artifact dirs (empty) | 2 |
-| git rm --cached scope | 0 files |
+### ~~Census summary~~ *(wrong-tree — superseded by Session 15)*
 
-### Pipeline robustness verdict: **State B**
+~~See `outputs/validation/session-14-repo-census.md`.~~ File does not exist on
+canonical tree. Correct census is in `outputs/validation/session-15-repo-census.md`.
 
-| Step | State |
-|---|---|
-| Download | A |
-| Timezone normalization | A |
-| Schema enforcement | A |
-| Calendar validation | B — RTH window hardcoded for ZN |
-| Gap detection | B — inherits RTH window issue |
-| Session alignment | B — inherits RTH window issue |
-| Roll handling | B — 3 hardcoded "ZN" strings in output paths |
-| Quality report generation | B — inherits RTH window issue |
+### ~~Pipeline robustness verdict~~ *(wrong-tree — superseded by Session 15)*
 
-Adding 6A is a ~4-hour targeted fix session. See `outputs/validation/session-14-pipeline-robustness.md`.
-
-### Validation artifacts
-
-- `outputs/validation/session-14-repo-census.md`
-- `outputs/validation/session-14-pipeline-robustness.md`
-- `outputs/validation/session-14-evidence/` (3 files)
+~~See `outputs/validation/session-14-pipeline-robustness.md`.~~ File does not exist
+on canonical tree. Correct audit is in `outputs/validation/session-15-pipeline-robustness.md`.
+Key correction: Roll handling is **State C** (not B) — `continuous.py` has hardcoded ZN
+roll convention and ZN output paths; Calendar validation is **State A** (not B) — it uses
+instrument registry lookup. 6A direct download works today on the State A path.
 
 ### Governance files created
 
@@ -53,11 +42,12 @@ Adding 6A is a ~4-hour targeted fix session. See `outputs/validation/session-14-
 
 ### Infrastructure
 
-- Git initialized; initial commit includes all Sessions 02–13 work (217 files)
-- `develop` and `session/14-repo-census` branches created
 - `.gitattributes` added for LF line-ending normalization
-- `.gitignore` updated: `runs/.trials.json` now tracked for DSR auditability; `outputs/validation/` rules added; `outputs/reports/` broadened; `.claude/settings.local.json` excluded
 - GitHub remote: `https://github.com/ibbygithub/trading-research`
+- ~~`develop` and `session/14-repo-census` branches created~~ — orphan branches on wrong
+  remote line (Line B); do not merge to main. See `folder_recovery_emergency.md`.
+- ~~`.gitignore` updated: `runs/.trials.json` now tracked~~ — NOT true on canonical tree;
+  `.trials.json` is excluded by `runs/**`. Open decision — see Session 15 census finding.
 
 ### Open issues created
 
