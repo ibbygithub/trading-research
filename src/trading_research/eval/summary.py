@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from trading_research.utils import stats as _stats
+
 if TYPE_CHECKING:
     from trading_research.backtest.engine import BacktestResult
 
@@ -137,26 +139,11 @@ def _daily_pnl(trades: pd.DataFrame) -> pd.Series:
 
 
 def _annualised_sharpe(daily_pnl: pd.Series) -> float:
-    if len(daily_pnl) < 2:
-        return float("nan")
-    mu = daily_pnl.mean()
-    sigma = daily_pnl.std(ddof=1)
-    if sigma == 0:
-        return float("nan")
-    return float(mu / sigma * math.sqrt(_TRADING_DAYS_PER_YEAR))
+    return _stats.annualised_sharpe(daily_pnl.values, trading_days=_TRADING_DAYS_PER_YEAR)
 
 
 def _annualised_sortino(daily_pnl: pd.Series) -> float:
-    if len(daily_pnl) < 2:
-        return float("nan")
-    mu = daily_pnl.mean()
-    downside = daily_pnl[daily_pnl < 0]
-    if len(downside) < 2:
-        return float("nan")
-    downside_dev = downside.std(ddof=1)
-    if downside_dev == 0:
-        return float("nan")
-    return float(mu / downside_dev * math.sqrt(_TRADING_DAYS_PER_YEAR))
+    return _stats.annualised_sortino(daily_pnl.values, trading_days=_TRADING_DAYS_PER_YEAR)
 
 
 def _drawdown_stats(equity: pd.Series) -> tuple[float, float, int]:

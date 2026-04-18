@@ -5,6 +5,57 @@ Format: `[SESSION-NN] YYYY-MM-DD — Session Name`
 
 ---
 
+## [SESSION-17] 2026-04-18 — Statistical Rigor Audit & Implementation
+
+Math verification against primary sources (Bailey & Lopez de Prado 2014 for DSR,
+Lopez de Prado AFML Ch.7 for purged k-fold). Two Severity-1 bugs fixed. Math
+utility consolidation completed.
+
+### Severity-1 fixes
+
+- **`backtest/walkforward.py`** — `gap_bars` and `embargo_bars` were silently
+  ignored; fold boundaries abutted. Now wired: gap separates consecutive test
+  windows, embargo excludes bars at each fold's leading edge.
+- **`eval/classifier.py`** — purge was a `pass` stub. Training used symmetric
+  KFold, including post-test observations. Replaced with strict walk-forward:
+  train on `[0, val_start − purge_bars)` only.
+
+### Severity-2 fixes
+
+- **`eval/meta_label.py`** — Calmar in threshold sweep used hardcoded `/16.0`
+  denominator. Replaced with `utils/stats.calmar()` using actual span_days
+  derived from trade timestamps.
+
+### New: `utils/stats.py`
+
+Single source of truth for `annualised_sharpe`, `annualised_sortino`, `calmar`,
+`win_rate`, `profit_factor`. All duplicate implementations in `eval/summary.py`,
+`eval/bootstrap.py`, and `eval/meta_label.py` now delegate here.
+
+### Data: `configs/calendars/fomc_dates.yaml`
+
+Added complete FOMC statement dates for 2011–2022 (was missing entirely;
+replaced stub 2018 entries). Full coverage 2010-01-27 → 2025-01-29, including
+March 2020 emergency inter-meeting cuts.
+
+### Audit verdicts (open items)
+
+- PSR/DSR formulas correct for Pearson kurtosis (normal=3). Caveat: callers
+  using scipy `kurtosis()` default (excess/Fisher, normal=0) will get the wrong
+  variance. Severity-2 follow-up: grep callers and fix.
+- Trials registry not idempotent; `.trials.json` may be gitignored. Severity-3
+  follow-up.
+- Look-ahead audit for Antigravity indicators and HTF DST boundary deferred to
+  Session 18 (Indicator Census).
+
+### Artifacts
+
+- `outputs/validation/session-17-statistical-rigor.md` — full audit report
+- `outputs/validation/session-17-evidence/psr_dsr_verification.py` — worked examples
+- `outputs/work-log/2026-04-18-10-47-session-17-summary.md`
+
+---
+
 ## [SESSION-16] 2026-04-18 — Precautionary Code Review: main@de03c04
 
 Structural review of commit `de03c04` (Antigravity Sessions 11–13 bootstrap push,
