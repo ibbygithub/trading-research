@@ -1,0 +1,9 @@
+[
+  {
+    "timestamp": "2026-04-16T21:35:12.457446+00:00",
+    "strategy_id": "zn-macd-pullback-v1",
+    "config_hash": "ec195446d50e74bf7c8896ede3c8d43a",
+    "sharpe": -21.1100751039937,
+    "trial_group": "zn-macd-pullback-v1"
+  }
+]
