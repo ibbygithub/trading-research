@@ -1,0 +1,33 @@
+src/trading_research/data/continuous.py:8:had migrated to TYZ23. The result was 10+ days of near-empty RTH bars in
+src/trading_research/data/resample.py:9:ZN Globex has a 1-hour maintenance halt (17:00–18:00 ET) every day.
+src/trading_research/data/resample.py:11:e.g., a 15-minute bar that contains the 16:55 ET bar and the 18:00 ET bar
+src/trading_research/data/resample.py:30:the session opens at 18:00 ET and the bucket boundary is at 17:45/18:00/18:15
+src/trading_research/data/resample.py:199:    from 18:00 ET (previous calendar day) to 17:00 ET, with a 1-hour maintenance
+src/trading_research/data/resample.py:202:    Implementation: shift timestamp_ny by +6 hours so that the 18:00 ET session
+src/trading_research/data/resample.py:228:    # +6h shifts 18:00 ET session open to midnight → all bars in the same
+src/trading_research/data/validate.py:39:- **Post-maintenance window**: CME has a daily halt 16:00–17:00 CT.
+src/trading_research/data/validate.py:41:  after the session reopens at 17:00 CT. These gaps are systematic and
+src/trading_research/data/validate.py:44:  CME closure that is missing from the CBOT_Bond calendar in
+src/trading_research/data/validate.py:55:summary plus individual entries for each RTH gap (since those are the most
+src/trading_research/data/validate.py:81:# - RTH: any gap > 5 consecutive bars is structural. Real market hours; even a
+src/trading_research/data/validate.py:83:# - Off-hours / overnight: the market trades thinly 17:00–08:20 ET. Runs of
+src/trading_research/data/validate.py:86:_LARGE_GAP_BARS_RTH = 5        # > 5 bars in RTH → structural
+src/trading_research/data/validate.py:88:_LARGE_GAP_BARS = _LARGE_GAP_BARS_RTH  # kept for backwards-compat in tests
+src/trading_research/data/validate.py:90:# RTH window for ZN-like products, in ET. Gaps starting in RTH are flagged.
+src/trading_research/data/validate.py:91:_RTH_OPEN_ET = pd.Timedelta(hours=8, minutes=20)   # 08:20 ET
+src/trading_research/data/validate.py:92:_RTH_CLOSE_ET = pd.Timedelta(hours=15, minutes=0)  # 15:00 ET
+src/trading_research/data/validate.py:94:# CME daily maintenance halt: 16:00–17:00 CT. TradeStation does not reliably
+src/trading_research/data/validate.py:95:# return bars for the first 30 minutes after the session reopens at 17:00 CT.
+src/trading_research/data/validate.py:97:_CME_MAINTENANCE_REOPEN_CT = pd.Timedelta(hours=17, minutes=0)  # 17:00 CT
+src/trading_research/data/validate.py:102:# pandas-market-calendars CBOT and CMEGlobex calendars as of 5.x.
+src/trading_research/data/validate.py:103:_JUNETEENTH_CALENDARS = {"CBOT_Bond", "CMEGlobex_FX", "CME"}
+src/trading_research/data/validate.py:149:    CME halts daily 16:00–17:00 CT. TradeStation systematically omits the
+src/trading_research/data/validate.py:150:    first ~30 minutes after the 17:00 CT reopen. A gap is classified as
+src/trading_research/data/validate.py:153:    - it starts between 17:00 CT and 17:30 CT.
+src/trading_research/data/validate.py:180:    missing from pandas-market-calendars CBOT/CMEGlobex calendars. We compute
+src/trading_research/data/validate.py:352:        # Classify RTH using the gap start time in ET.
+src/trading_research/data/validate.py:358:        in_rth = bool(_RTH_OPEN_ET <= time_of_day_et <= _RTH_CLOSE_ET)
+src/trading_research/data/validate.py:362:        large_gap_threshold = _LARGE_GAP_BARS_RTH if in_rth else _LARGE_GAP_BARS_OVERNIGHT
+src/trading_research/data/validate.py:364:        if len(run) <= _LARGE_GAP_BARS_RTH:
+src/trading_research/data/validate.py:377:    # RTH gaps are listed individually; non-RTH gaps are summarised.
+src/trading_research/data/validate.py:384:                f"Large gap (RTH!): {g['bars_missing']} missing bars "

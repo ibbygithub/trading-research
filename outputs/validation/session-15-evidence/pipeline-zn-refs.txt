@@ -1,0 +1,42 @@
+src/trading_research/data/continuous.py:5:TradeStation's ``@TY`` continuous contract rolls on its own undocumented
+src/trading_research/data/continuous.py:6:schedule. As confirmed by the September 2023 diagnostic, TS held @ZN on
+src/trading_research/data/continuous.py:7:TYU23 (September contract) well past the point where all real liquidity
+src/trading_research/data/continuous.py:8:had migrated to TYZ23. The result was 10+ days of near-empty RTH bars in
+src/trading_research/data/continuous.py:18:    rate product like ZN; ratio adjustment would distort tick-size arithmetic.
+src/trading_research/data/continuous.py:19:    ZN price range has been ~95–135 over the project history; the cumulative
+src/trading_research/data/continuous.py:22:Roll convention for ZN (configurable via roll_days_before parameter)
+src/trading_research/data/continuous.py:23:    CME rule: ZN last trading day = 7 business days before the last business
+src/trading_research/data/continuous.py:27:    aligned with when TY liquidity actually migrates.
+src/trading_research/data/continuous.py:36:    data/clean/ZN_1m_backadjusted_{start}_{end}.parquet  — adjusted prices
+src/trading_research/data/continuous.py:37:    data/clean/ZN_1m_unadjusted_{start}_{end}.parquet   — raw stitched prices
+src/trading_research/data/continuous.py:38:    data/clean/ZN_roll_log_{start}_{end}.json           — roll dates + deltas
+src/trading_research/data/continuous.py:39:    data/raw/contracts/TY{code}{year}_1m_{start}_{end}.parquet  — cached per-contract
+src/trading_research/data/continuous.py:104:    """ZN last trading day: 7 business days before last biz day of delivery month.
+src/trading_research/data/continuous.py:133:    ts_symbol: str          # e.g. "TYU23"
+src/trading_research/data/continuous.py:367:    """Build a back-adjusted continuous series for ``symbol`` (e.g. ``"ZN"``).
+src/trading_research/data/continuous.py:386:    # Extract TS root from the continuous symbol (e.g. "@TY" → "TY").
+src/trading_research/data/continuous.py:542:    adj_path = output_dir / f"ZN_1m_backadjusted_{date_tag}.parquet"
+src/trading_research/data/continuous.py:543:    unadj_path = output_dir / f"ZN_1m_unadjusted_{date_tag}.parquet"
+src/trading_research/data/continuous.py:544:    roll_log_path = output_dir / f"ZN_roll_log_{date_tag}.json"
+src/trading_research/data/manifest.py:171:        Instrument symbol (e.g., ``"ZN"``, ``"TYH10"``).
+src/trading_research/data/manifest.py:211:        Instrument symbol (e.g., ``"ZN"``).
+src/trading_research/data/resample.py:9:ZN Globex has a 1-hour maintenance halt (17:00–18:00 ET) every day.
+src/trading_research/data/resample.py:29:bars if the session opens at 17:15 ET on-the-dot, which ZN does — but if
+src/trading_research/data/resample.py:198:    A ZN "daily bar" is a Globex session, not a calendar day. The session runs
+src/trading_research/data/resample.py:280:        Base symbol name for output file naming (e.g. ``"ZN"``).
+src/trading_research/data/tradestation/auth.py:8:  refresh when within ``_REFRESH_SAFETY_MARGIN_SEC`` of expiry.
+src/trading_research/data/tradestation/auth.py:34:_REFRESH_SAFETY_MARGIN_SEC = 60.0
+src/trading_research/data/tradestation/auth.py:98:        if self._state is None or now >= (self._state.expires_at_epoch - _REFRESH_SAFETY_MARGIN_SEC):
+src/trading_research/data/tradestation/client.py:10:- URL-encode ``@`` in continuous futures symbols (``@ZN`` -> ``%40ZN``).
+src/trading_research/data/tradestation/download.py:18:    ├── ZN_1m_2024-01-01_2024-01-31.parquet
+src/trading_research/data/tradestation/download.py:19:    └── ZN_1m_2024-01-01_2024-01-31.metadata.json
+src/trading_research/data/tradestation/download.py:154:    ``symbol`` is the *root* (e.g. ``"ZN"``); the instrument registry is
+src/trading_research/data/tradestation/download.py:155:    consulted for the actual TradeStation symbol (``"@ZN"``) and the data
+src/trading_research/data/tradestation/__main__.py:6:        --symbol ZN --start 2024-01-01 --end 2024-01-31
+src/trading_research/data/tradestation/__main__.py:22:@click.option("--symbol", required=True, help="Root symbol, e.g. ZN")
+src/trading_research/data/validate.py:12:        parquet_path=Path("data/raw/ZN_1m_2024-01-01_2024-01-31.parquet"),
+src/trading_research/data/validate.py:13:        symbol="ZN",
+src/trading_research/data/validate.py:44:  CME closure that is missing from the CBOT_Bond calendar in
+src/trading_research/data/validate.py:90:# RTH window for ZN-like products, in ET. Gaps starting in RTH are flagged.
+src/trading_research/data/validate.py:103:_JUNETEENTH_CALENDARS = {"CBOT_Bond", "CMEGlobex_FX", "CME"}
+src/trading_research/data/validate.py:237:        Root symbol (e.g. ``"ZN"``). Used to look up the calendar if
