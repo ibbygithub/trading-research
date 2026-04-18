@@ -108,6 +108,13 @@ outputs/logs/
 !outputs/work-log/
 !outputs/work-log/**/*.md
 
+# Keep validation artifacts — audit outputs are project memory.
+# Do NOT ignore outputs/validation/ — census, pipeline audit, evidence files
+# must be trackable. Individual binary outputs (*.parquet, *.html) are covered
+# by the binary exclusion rules above and do not need explicit exclusion here.
+!outputs/validation/
+!outputs/validation/**
+
 # -----------------------------------------------------------------------------
 # Reports / large HTML exports (generated, regenerable from runs/)
 # -----------------------------------------------------------------------------
