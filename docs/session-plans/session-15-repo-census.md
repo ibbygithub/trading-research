@@ -1,7 +1,7 @@
 ---
 session: 15
 title: Repo Census, Pipeline Audit, and Governance Reconciliation (redo of archived Session 14)
-status: Draft
+status: Complete
 created: 2026-04-17
 planner: Claude Code (Opus 4), with quant-mentor + data-scientist review
 executor: Claude Code (Sonnet) — next session
@@ -198,62 +198,79 @@ Save every informing command output under `outputs/validation/session-15-evidenc
 
 ## Completion Block
 
-To be filled in by the executor before stopping.
-
 ```
 Session 15 — Completion
 
-Branch: session/15-repo-census-redo at <SHA>
-Also touched: session/14-governance (reconciliation commit <SHA>)
+Branch: session/15-repo-census-redo at 9cb7d65
+Also touched: session/14-governance (reconciliation commit ae1d717)
 
-Commits:
-- (sha : message) x9
+Commits on session/15-repo-census-redo:
+- 0d857bc : planning: add session plans 15, 16, 17 (carve-out from original redo scope)
+- 5ceac3b : census: add repo census and pipeline robustness audit
+- f732f0f : docs(work-log): commit folder-recovery work logs
+- 3936e27 : chore(gitignore): preserve outputs/validation/
+- 6ff864a : docs: archive session-14 strategy-builder plan
+- 6f51fb5 : docs(work-log): partial work log at mid-session checkpoint
+- 2859e4d : docs(changelog): add SESSION-15 entry with census and pipeline audit results
+- 9cb7d65 : docs(work-log): final session-15 work log — all 9 deliverables complete
 
 Validation artifacts:
 - outputs/validation/session-15-repo-census.md
 - outputs/validation/session-15-pipeline-robustness.md
-- outputs/validation/session-15-evidence/ (N files)
+- outputs/validation/session-15-evidence/ (5 files: dir-counts, src-tree, pipeline-zn-refs, pipeline-session-refs, pytest-baseline)
 
-Pipeline robustness verdict: State A / B / C (aggregate)
+Pipeline robustness verdict: State B (aggregate) — one isolated C
 Per-step classifications:
-- download: A/B/C
-- calendar validation: A/B/C
-- gap detection: A/B/C
-- roll handling: A/B/C
-- session alignment: A/B/C
-- timezone normalization: A/B/C
-- schema enforcement: A/B/C
-- quality-report generation: A/B/C
+- download: A
+- calendar validation: A
+- gap detection: B
+- roll handling: C
+- session alignment: B
+- timezone normalization: A
+- schema enforcement: A
+- quality-report generation: A
 
 Repo census summary:
-- Canonical source directories: N
-- Generated-artifact directories: N
-- Experimental directories: N
-- Duplicate/archive candidates: N
-- Unknown: N
-- New .gitignore rules: N
-- Files flagged for future `git rm --cached`: N
-- Pytest baseline: P passing / F failing / S skipped
+- Canonical source directories: 7 (src, tests, configs, docs, scripts, .claude, outputs)
+- Generated / excluded: 4 (runs, .venv, .pytest_cache, .ruff_cache)
+- Archive / migration: 3 (Legacy/, MIGRATION_MANIFEST.md, prep_migration_samples.py)
+- Orphan / unknown: 3 (2 mangled dirs + migration_samples)
+- Scratch: 1 (notebooks/)
+- New .gitignore rules: 2 (!outputs/validation/, !outputs/validation/**)
+- Files flagged for git rm --cached: 0
+- Pytest baseline: ~324 passing / 13 failing / 337 collected
 
 Governance reconciliation:
-- CHANGELOG.md edits: (summary)
-- Other edits: (summary or "none")
+- CHANGELOG.md on session/14-governance: struck wrong-tree census counts, wrong pipeline
+  verdict (Roll=B→C, Calendar=B→A), orphan branch claim, .trials.json tracking claim;
+  added reconciliation notice block pointing to Session 15 deliverables.
+- session-14-plan.md: archived via git mv to docs/session-plans/archive/
+  session-14-strategy-builder-DEPRECATED.md with supersession header.
+- .claude/settings.local.json: Stop hook path corrected (not committed — local settings).
 
-Files committed to `session/15-repo-census-redo` but not elsewhere:
+Files committed to session/15-repo-census-redo but not on main:
 - outputs/work-log/2026-04-17-15-53-folder-recovery-stage-1.md
 - outputs/work-log/2026-04-17-16-45-recovery-stages-2-3.md
 
-Mid-session checkpoint observed: yes / no
+Mid-session checkpoint observed: yes — Ibby confirmed "proceed" after Deliverables 1-3.
 
 Decisions made during execution:
-- (any classification call-outs, edge-case handling, deviations)
+- Pytest count discrepancy: 337 (canonical) vs 384 (Antigravity/wrong-tree). Wrong-tree count
+  not valid. Session 17 to investigate the 13 failures.
+- Pipeline Roll handling reclassified C (was B in wrong-tree Session 14 audit). Two violations
+  in continuous.py: ZN-specific last_trading_day_zn() function and hardcoded "ZN" in output
+  path strings at lines 542-544.
+- CHANGELOG.md created fresh on session-15 branch; session-14-governance holds earlier entries.
+  Merge note instructs combine-on-develop when both branches land.
 
 Known limitations:
-- (anything not done, anything done partially, anything deferred)
+- runs/.trials.json tracking decision left open — no answer from Ibby this session.
+- 13 test failures recorded but not debugged (deferred to Session 17).
 
 Follow-up tickets:
-- `git rm --cached` cleanup session (estimated file count: N)
-- (any other surfaced work)
+- Session 17: debug 13 test failures (VWAP KeyErrors, monte_carlo AttributeError,
+  deflated_sharpe TypeError, subperiod AttributeError)
+- Open decision for Ibby: should runs/.trials.json be tracked? Fix is one .gitignore negation rule.
 
-Next session: Session 16 — Antigravity Code Review (main@de03c04).
+Next session: Session 16 — 6A Data Pull (main@de03c04). Depends on Session 15 merge to develop.
 ```
