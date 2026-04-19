@@ -28,6 +28,10 @@ signal_params:
   macd_fast: 12            # MACD fast EMA (applied to 60m computation)
   macd_slow: 26            # MACD slow EMA
   macd_signal_period: 9    # MACD signal EMA
+  blackout_calendars:      # suppress entries on high-impact event days
+    - fomc
+    - cpi
+    - nfp
 
 backtest:
   fill_model: next_bar_open

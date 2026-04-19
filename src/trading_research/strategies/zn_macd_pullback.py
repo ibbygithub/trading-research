@@ -59,6 +59,7 @@ def generate_signals(
     macd_fast: int = 12,
     macd_slow: int = 26,
     macd_signal_period: int = 9,
+    blackout_calendars: list[str] | None = None,
     data_root: Path | None = None,
 ) -> pd.DataFrame:
     """Generate entry and exit signals for the ZN MACD pullback strategy.
@@ -75,6 +76,10 @@ def generate_signals(
         ATR multiplier for stop distance from signal bar close.
     macd_fast, macd_slow, macd_signal_period:
         MACD parameters used when computing 60m MACD from the CLEAN parquet.
+    blackout_calendars:
+        Calendar names to load for event-day suppression. Any combination of
+        ``"fomc"``, ``"cpi"``, ``"nfp"``. Entry signals on matching dates are
+        zeroed; exit signals are preserved so open positions can close normally.
     data_root:
         Override for the ``data/`` directory. Used in tests.
 
@@ -193,6 +198,24 @@ def generate_signals(
     # The engine uses NaN stop as the guard that prevents phantom entries.
     stop_arr[valid_long] = long_stop[valid_long]
     stop_arr[valid_short] = short_stop[valid_short]
+
+    # ------------------------------------------------------------------
+    # Step 6 — Event-day blackout: suppress entry signals on FOMC/CPI/NFP
+    # ------------------------------------------------------------------
+    # Exit signals are left intact — if a position is already open when an
+    # event day is reached, the strategy must still be able to close it.
+    # The engine's NaN-stop guard means a zeroed signal on an exit bar is
+    # harmless, but we specifically target entry bars (finite stop) to be safe.
+    if blackout_calendars:
+        from trading_research.strategies.event_blackout import load_blackout_dates
+
+        blackout_set = load_blackout_dates(blackout_calendars)
+        et_dates = df.index.tz_convert("America/New_York").date
+        entry_on_blackout = np.array(
+            [d in blackout_set for d in et_dates], dtype=bool
+        ) & np.isfinite(stop_arr)
+        signal[entry_on_blackout] = 0
+        stop_arr[entry_on_blackout] = np.nan
 
     return pd.DataFrame(
         {"signal": signal, "stop": stop_arr, "target": target_arr},

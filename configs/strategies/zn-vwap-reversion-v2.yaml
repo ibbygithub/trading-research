@@ -1,0 +1,40 @@
+# ZN Session VWAP Mean Reversion — v2
+#
+# Hypothesis: price pushed beyond session VWAP ± 2σ is structurally stretched.
+# Institutions anchor to VWAP; the rubber band snaps back.
+#
+# Entry: close breaches VWAP ± 2σ band with daily MACD direction confirming.
+#        No MACD confirmation on the 5m frame — the band touch is the signal.
+# Fill:  next-bar-open (standing rule).
+# Stop:  2x ATR from signal bar close.
+# Target: price crosses back through session VWAP.
+# EOD:   engine closes any open position at 15:00 ET.
+# RTH:   entries allowed only 08:20–15:00 ET (13:20–20:00 UTC).
+#
+# Designed in Session 22. Do not change parameters during initial evaluation
+# window (2010–2024). That would make the walk-forward meaningless.
+
+strategy_id: zn-vwap-reversion-v2
+symbol: ZN
+timeframe: 5m
+description: >
+  Session VWAP structural mean reversion. Daily MACD direction as bias filter.
+  Entry when close breaks VWAP ± 2σ. Stop at 2x ATR. Target: reversion to
+  session VWAP. Flat by EOD. RTH only (08:20–15:00 ET).
+
+signal_module: trading_research.strategies.zn_vwap_reversion
+signal_params:
+  atr_stop_mult: 2.0            # stop = close ± (atr_stop_mult × atr_14)
+  vwap_band_sigma: 2.0          # uses vwap_session_std_2_0 column from features
+  blackout_calendars:
+    - fomc
+    - cpi
+    - nfp
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: true
+  max_holding_bars: null
+  use_ofi_resolution: false
+  quantity: 1
