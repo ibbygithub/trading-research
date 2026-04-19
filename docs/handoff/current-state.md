@@ -1,14 +1,13 @@
 # Current State
-**Last updated:** Session 14 (2026-04-17)  
+**Last updated:** Session 18 (2026-04-18)
 **Updated by:** Claude Code (Sonnet)
 
 ---
 
-## Active Session
+## Active Branch
 
-**Session 14 — Repo Census, Pipeline Audit, Governance Bootstrap**  
-Branch: `session/14-repo-census`  
-Status: PR open, awaiting Ibby review and merge to `develop`
+`develop` — all sessions 15–18 merged here.
+Last commit: `33141e1 test(session-18): indicator census, fix 13 test failures, add P/R/F1 to meta-labeling`
 
 ---
 
@@ -20,27 +19,24 @@ Status: PR open, awaiting Ibby review and merge to `develop`
 | 06 | CLI automation: verify, rebuild, features, inventory |
 | 07 | Visual cockpit: Dash 4-pane MTF replay app |
 | 08–09 | Backtest engine + portfolio risk |
-| 10–13 | Reporting suite: v1 Trader's Desk, v2 Risk Officer, v3 Regime & ML, v4 Portfolio |
-| **14** | **Repo census, pipeline audit, governance bootstrap — IN PROGRESS** |
-
----
-
-## Next Approved Session
-
-**Session 15 — Indicator Census**  
-Plan: to be written (draft from session-14 planning: indicator file enumeration, look-ahead audit, HTF aggregation validation, unadjusted ZN roll consumption audit)
+| 10–13 | Reporting suite: v1–v4, 24-section HTML report |
+| 14–15 | Repo census, pipeline audit, governance bootstrap |
+| 16 | Antigravity code review — "Cohesive extension" verdict |
+| 17 | Statistical rigor audit — 3 load-bearing bugs fixed (kurtosis, purge, FOMC calendar) |
+| **18** | **Indicator census, DST tests, P/R/F1, fixed 13 failing tests** |
 
 ---
 
 ## What Is Currently Working
 
 - `uv run trading-research verify` — validates CLEAN/FEATURES parquet inventory
-- `uv run trading-research rebuild-clean ZN` — rebuilds 1m/5m/15m/60m/240m/1D from contract cache
+- `uv run trading-research rebuild-clean ZN` — rebuilds 1m/5m/15m/60m/240m/1D
 - `uv run trading-research rebuild-features ZN` — recomputes all indicators
 - `uv run trading-research backtest` — runs ZN MACD pullback strategy
-- `uv run trading-research walkforward` — purged k-fold walk-forward validation
-- `uv run trading-research report <strategy>` — 24-section HTML report (v2)
+- `uv run trading-research walkforward` — purged walk-forward with real gap/embargo
+- `uv run trading-research report <strategy>` — 24-section HTML report
 - `uv run trading-research replay --symbol ZN` — opens 4-pane Dash cockpit
+- `uv run pytest` → **353 passed, 1 skipped, 0 failed**
 
 ---
 
@@ -51,8 +47,8 @@ Plan: to be written (draft from session-14 planning: indicator file enumeration,
 | ZN 1m RAW (2010-2026) | Present: `data/raw/ZN_1m_2010-01-01_2026-04-11.parquet` |
 | ZN CLEAN (1m, 5m, 15m, 60m, 240m, 1D) | Present: all manifests committed |
 | ZN FEATURES (5m, 15m) | Present: manifests committed |
-| 6A/6C/6N RAW samples (Jan 2024) | Present: sample manifests only; full pull not done |
-| Per-contract cache (TY series) | Present in `data/raw/contracts/` (not tracked) |
+| 6A/6C/6N RAW samples (Jan 2024) | Present: sample manifests only; full pull blocked on OI-010/011/012 |
+| FOMC calendar | Present: `configs/calendars/fomc_dates.yaml` (2010–2025, complete) |
 
 ---
 
@@ -60,7 +56,8 @@ Plan: to be written (draft from session-14 planning: indicator file enumeration,
 
 See `docs/handoff/open-issues.md` for the full list.
 
-Critical: none blocking session 15.
+Critical blocking next work:
+- OI-013: SHAP JIT crash on Windows — test skipped, not blocking strategy work
 
 ---
 
@@ -68,13 +65,13 @@ Critical: none blocking session 15.
 
 - Python 3.12, managed by `uv`
 - `uv sync` restores the environment from `uv.lock`
-- `scipy` added to venv via pip during session 11 (uv lock conflict); needs `uv add scipy` from a clean terminal — tracked in open issues
-- All 384+ tests passing as of session 11
+- `scipy` added properly (in pyproject.toml since session 17)
+- Test suite: 353 passed, 1 skipped (test_shap — OI-013), 0 failed
 
 ---
 
 ## Repository
 
 - GitHub: `https://github.com/ibbygithub/trading-research`
-- Default branch on remote: not yet set (first push happens at end of session 14)
-- Local: `main` is the initial commit root; `develop` and `session/14-repo-census` exist
+- Working branch: `develop`
+- `main` receives only human-approved merges after passing test suite
