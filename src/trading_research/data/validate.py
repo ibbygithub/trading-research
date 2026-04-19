@@ -80,16 +80,15 @@ logger = get_logger(__name__)
 # Gap thresholds differ by session:
 # - RTH: any gap > 5 consecutive bars is structural. Real market hours; even a
 #   6-minute gap is suspicious.
-# - Off-hours / overnight: the market trades thinly 17:00–08:20 ET. Runs of
+# - Off-hours / overnight: the market trades thinly outside RTH. Runs of
 #   6-60 missing bars are common zero-activity periods and not data errors.
 #   Only gaps > 60 bars (1 hour) in the overnight session are structural.
 _LARGE_GAP_BARS_RTH = 5        # > 5 bars in RTH → structural
 _LARGE_GAP_BARS_OVERNIGHT = 60 # > 60 bars off-hours → structural; 6-60 = overnight_minor
 _LARGE_GAP_BARS = _LARGE_GAP_BARS_RTH  # kept for backwards-compat in tests
 
-# RTH window for ZN-like products, in ET. Gaps starting in RTH are flagged.
-_RTH_OPEN_ET = pd.Timedelta(hours=8, minutes=20)   # 08:20 ET
-_RTH_CLOSE_ET = pd.Timedelta(hours=15, minutes=0)  # 15:00 ET
+# RTH window is per-instrument and is read from InstrumentRegistry at validation time.
+# ZN: 08:20–15:00 ET; 6A/6C/6N: 08:00–17:00 ET.
 
 # CME daily maintenance halt: 16:00–17:00 CT. TradeStation does not reliably
 # return bars for the first 30 minutes after the session reopens at 17:00 CT.
@@ -259,6 +258,19 @@ def validate_bar_dataset(
         raise FileNotFoundError(f"Parquet not found: {parquet_path}")
 
     cal_name = calendar_name or _get_calendar_name(symbol)
+
+    # Read RTH window from the instrument registry so 6A (08:00–17:00 ET)
+    # and ZN (08:20–15:00 ET) are classified correctly without hardcoding.
+    spec = default_registry().get(symbol)
+    rth_open_et = pd.Timedelta(
+        hours=spec.session.rth.open.hour,
+        minutes=spec.session.rth.open.minute,
+    )
+    rth_close_et = pd.Timedelta(
+        hours=spec.session.rth.close.hour,
+        minutes=spec.session.rth.close.minute,
+    )
+
     logger.info(
         "validate_start",
         symbol=symbol,
@@ -355,7 +367,7 @@ def validate_bar_dataset(
             hours=run_start_ny.hour,
             minutes=run_start_ny.minute,
         )
-        in_rth = bool(_RTH_OPEN_ET <= time_of_day_et <= _RTH_CLOSE_ET)
+        in_rth = bool(rth_open_et <= time_of_day_et <= rth_close_et)
         gap_info["in_rth"] = in_rth
 
         # Select the applicable large-gap threshold.

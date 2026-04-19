@@ -76,7 +76,7 @@ def rebuild_clean(
     # result.adjusted_path / result.unadjusted_path are the output files
     adj_path = result.adjusted_path
     unadj_path = result.unadjusted_path
-    source_contract_paths = sorted(contracts_dir.glob("TY*.parquet"))
+    source_contract_paths = sorted(contracts_dir.glob(f"{result.ts_root}*.parquet"))
 
     for path, adjustment in [(adj_path, "backadjusted"), (unadj_path, "unadjusted")]:
         manifest = build_clean_manifest(

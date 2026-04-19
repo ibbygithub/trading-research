@@ -33,10 +33,10 @@ Roll date for September 2023 (roll_days_before=5):
     This is before the data degradation that TS's continuous exhibited.
 
 Output layout:
-    data/clean/ZN_1m_backadjusted_{start}_{end}.parquet  — adjusted prices
-    data/clean/ZN_1m_unadjusted_{start}_{end}.parquet   — raw stitched prices
-    data/clean/ZN_roll_log_{start}_{end}.json           — roll dates + deltas
-    data/raw/contracts/TY{code}{year}_1m_{start}_{end}.parquet  — cached per-contract
+    data/clean/{symbol}_1m_backadjusted_{start}_{end}.parquet  — adjusted prices
+    data/clean/{symbol}_1m_unadjusted_{start}_{end}.parquet   — raw stitched prices
+    data/clean/{symbol}_roll_log_{start}_{end}.json           — roll dates + deltas
+    data/raw/contracts/{ts_root}{code}{year}_1m_{start}_{end}.parquet  — cached per-contract
 """
 
 from __future__ import annotations
@@ -100,14 +100,12 @@ def _subtract_biz_days(d: date, n: int) -> date:
     return cur
 
 
-def last_trading_day_zn(expiry_year: int, expiry_month: int) -> date:
-    """ZN last trading day: 7 business days before last biz day of delivery month.
+def last_trading_day_quarterly_cme(expiry_year: int, expiry_month: int) -> date:
+    """Last trading day for quarterly CME futures: 7 business days before last biz day of delivery month.
 
-    CME rule for 10-Year T-Note futures: trading ceases at noon CT on the
-    last business day of the contract month, with the last *delivery* day
-    being the last business day. The last *trading* day (i.e., when the
-    exchange stops accepting new positions) is 7 business days prior to the
-    last business day of the delivery month.
+    Applies to ZN (10-Year T-Note), 6A (AUD), 6C (CAD), 6N (NZD), and other
+    quarterly CME contracts that follow this convention. Trading ceases at the
+    last business day of the contract month minus 7 business days.
     """
     last_biz = _last_biz_day_of_month(expiry_year, expiry_month)
     return _subtract_biz_days(last_biz, 7)
@@ -119,7 +117,7 @@ def roll_date_for_contract(
     roll_days_before: int = DEFAULT_ROLL_DAYS_BEFORE,
 ) -> date:
     """Our roll date = last_trading_day - roll_days_before business days."""
-    ltd = last_trading_day_zn(expiry_year, expiry_month)
+    ltd = last_trading_day_quarterly_cme(expiry_year, expiry_month)
     return _subtract_biz_days(ltd, roll_days_before)
 
 
@@ -539,9 +537,9 @@ def build_back_adjusted_continuous(
 
     # Write parquets.
     date_tag = f"{start_date.isoformat()}_{end_date.isoformat()}"
-    adj_path = output_dir / f"ZN_1m_backadjusted_{date_tag}.parquet"
-    unadj_path = output_dir / f"ZN_1m_unadjusted_{date_tag}.parquet"
-    roll_log_path = output_dir / f"ZN_roll_log_{date_tag}.json"
+    adj_path = output_dir / f"{symbol}_1m_backadjusted_{date_tag}.parquet"
+    unadj_path = output_dir / f"{symbol}_1m_unadjusted_{date_tag}.parquet"
+    roll_log_path = output_dir / f"{symbol}_roll_log_{date_tag}.json"
 
     def _write(df: pd.DataFrame, path: Path) -> None:
         cols = [c for c in BAR_SCHEMA.names if c in df.columns]

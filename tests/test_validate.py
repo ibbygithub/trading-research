@@ -408,3 +408,139 @@ def test_zero_buy_sell_coverage_still_passes(tmp_path: Path) -> None:
     )
     assert report["passed"] is True
     assert report["buy_sell_volume_coverage_pct"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Per-symbol RTH window (OI-010)
+# ---------------------------------------------------------------------------
+
+def test_rth_window_is_per_symbol(tmp_path: Path) -> None:
+    """Gap classification must use the symbol's RTH window, not ZN's hardcoded one.
+
+    ZN RTH: 08:20–15:00 ET.  6A RTH: 08:00–17:00 ET.
+
+    A gap at 08:05 ET is *outside* ZN RTH but *inside* 6A RTH.  When
+    validate_bar_dataset is called with symbol="6A", that gap must be
+    classified as an RTH gap (structural), not an overnight gap.
+    """
+    import pandas_market_calendars as mcal
+
+    # Build a full 6A session for 2024-01-02 using its calendar.
+    cal = mcal.get_calendar("CMEGlobex_FX")
+    sched = cal.schedule("2024-01-02", "2024-01-02")
+    all_bars = [str(ts) for ts in mcal.date_range(sched, frequency="1min")]
+
+    # Remove a run of bars at 08:05–08:10 ET (13:05–13:10 UTC) — inside 6A RTH.
+    remove_utc = {
+        "2024-01-02 13:05:00+00:00",
+        "2024-01-02 13:06:00+00:00",
+        "2024-01-02 13:07:00+00:00",
+        "2024-01-02 13:08:00+00:00",
+        "2024-01-02 13:09:00+00:00",
+        "2024-01-02 13:10:00+00:00",
+    }
+    trimmed = [ts for ts in all_bars if ts not in remove_utc]
+
+    rows = []
+    for ts_str in trimmed:
+        ts_utc = pd.Timestamp(ts_str, tz="UTC")
+        ts_ny = ts_utc.tz_convert("America/New_York")
+        rows.append({
+            "timestamp_utc": ts_utc,
+            "timestamp_ny": ts_ny,
+            "open": 0.6500,
+            "high": 0.6510,
+            "low": 0.6490,
+            "close": 0.6505,
+            "volume": 100,
+            "buy_volume": 60,
+            "sell_volume": 40,
+            "up_ticks": 10,
+            "down_ticks": 8,
+            "total_ticks": 18,
+        })
+
+    from trading_research.data.schema import BAR_SCHEMA
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    df = pd.DataFrame(rows)
+    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
+    df["timestamp_ny"] = pd.to_datetime(df["timestamp_ny"])
+    tbl = pa.Table.from_pandas(df, schema=BAR_SCHEMA, preserve_index=False)
+    path = tmp_path / "6A_1m_test.parquet"
+    pq.write_table(tbl, path)
+
+    report = validate_bar_dataset(
+        path, "6A", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+    )
+
+    # The 6-bar gap at 08:05 ET is inside 6A RTH → must appear as an RTH large gap.
+    rth_large = [g for g in report["large_gaps"] if g["in_rth"]]
+    assert len(rth_large) >= 1, (
+        "A gap inside 6A RTH (08:05 ET) was not classified as an RTH gap. "
+        "Likely still using ZN's 08:20 open instead of 6A's 08:00 open."
+    )
+
+
+def test_zn_rth_window_unchanged(tmp_path: Path) -> None:
+    """ZN RTH (08:20 ET open) still reads correctly from the registry after OI-010."""
+    # A gap at 08:05 ET is OUTSIDE ZN RTH — should not be an RTH large gap.
+    cal_name = "CBOT_Bond"
+    import pandas_market_calendars as mcal
+
+    cal = mcal.get_calendar(cal_name)
+    sched = cal.schedule("2024-01-02", "2024-01-02")
+    all_bars = [str(ts) for ts in mcal.date_range(sched, frequency="1min")]
+
+    # Remove a 6-bar run at 08:05–08:10 ET (13:05–13:10 UTC) — outside ZN RTH.
+    remove_utc = {
+        "2024-01-02 13:05:00+00:00",
+        "2024-01-02 13:06:00+00:00",
+        "2024-01-02 13:07:00+00:00",
+        "2024-01-02 13:08:00+00:00",
+        "2024-01-02 13:09:00+00:00",
+        "2024-01-02 13:10:00+00:00",
+    }
+    trimmed = [ts for ts in all_bars if ts not in remove_utc]
+
+    rows = []
+    for ts_str in trimmed:
+        ts_utc = pd.Timestamp(ts_str, tz="UTC")
+        ts_ny = ts_utc.tz_convert("America/New_York")
+        rows.append({
+            "timestamp_utc": ts_utc,
+            "timestamp_ny": ts_ny,
+            "open": 113.5,
+            "high": 113.75,
+            "low": 113.25,
+            "close": 113.5,
+            "volume": 100,
+            "buy_volume": 60,
+            "sell_volume": 40,
+            "up_ticks": 10,
+            "down_ticks": 8,
+            "total_ticks": 18,
+        })
+
+    from trading_research.data.schema import BAR_SCHEMA
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    df = pd.DataFrame(rows)
+    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
+    df["timestamp_ny"] = pd.to_datetime(df["timestamp_ny"])
+    tbl = pa.Table.from_pandas(df, schema=BAR_SCHEMA, preserve_index=False)
+    path = tmp_path / "ZN_1m_rth_test.parquet"
+    pq.write_table(tbl, path)
+
+    report = validate_bar_dataset(
+        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+    )
+
+    # The 6-bar gap at 08:05 ET is before ZN RTH opens at 08:20 → NOT an RTH gap.
+    rth_large = [g for g in report["large_gaps"] if g["in_rth"]]
+    assert len(rth_large) == 0, (
+        "A pre-RTH gap (08:05 ET, before ZN's 08:20 open) was misclassified "
+        "as an RTH gap. ZN RTH window may have changed incorrectly."
+    )
