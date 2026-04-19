@@ -44,14 +44,20 @@ def evaluate_meta_labeling(
 
     base_calmar = _stats.calmar(df["net_pnl_usd"].values, span_days)
 
+    actual_wins = df["net_pnl_usd"] > 0
+
     for t in thresholds:
-        filtered = df[df["win_prob"] >= t]
-        count = len(filtered)
+        predicted_win = df["win_prob"] >= t
+        count = int(predicted_win.sum())
         if count == 0:
-            results.append({"threshold": t, "count": 0, "win_rate": 0, "calmar": 0})
+            results.append({
+                "threshold": t, "count": 0, "win_rate": 0.0, "calmar": 0.0,
+                "precision": float("nan"), "recall": float("nan"), "f1": float("nan"),
+            })
             continue
 
-        win_rate = (filtered["net_pnl_usd"] > 0).mean()
+        filtered = df[predicted_win]
+        win_rate = float((filtered["net_pnl_usd"] > 0).mean())
 
         if "exit_ts" in filtered.columns and "entry_ts" in filtered.columns:
             f_span = max(
@@ -61,12 +67,27 @@ def evaluate_meta_labeling(
         else:
             f_span = span_days
         calmar_val = _stats.calmar(filtered["net_pnl_usd"].values, f_span)
-        
+
+        tp = int((predicted_win & actual_wins).sum())
+        fp = int((predicted_win & ~actual_wins).sum())
+        fn = int((~predicted_win & actual_wins).sum())
+
+        precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
+        recall = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (not np.isnan(precision) and not np.isnan(recall) and (precision + recall) > 0)
+            else float("nan")
+        )
+
         results.append({
             "threshold": t,
             "count": count,
             "win_rate": win_rate,
             "calmar": calmar_val,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
         })
         
     df_res = pd.DataFrame(results)

@@ -355,8 +355,32 @@ def generate_report(run_dir: Path, version: str = "v2") -> ReportPaths:
             meta_res = evaluate_meta_labeling(tagged_trades, X_train.index, cls_res["oof_preds"])
             if "error" not in meta_res:
                 df_meta = meta_res["sweep_data"]
-                fig_meta = go.Figure(go.Scatter(x=df_meta["threshold"], y=df_meta["calmar"], mode="lines+markers"))
-                fig_meta.update_layout(title="Meta-Labeling Threshold vs Calmar", template="plotly_dark", height=300)
+                fig_meta = go.Figure()
+                fig_meta.add_trace(go.Scatter(
+                    x=df_meta["threshold"], y=df_meta["calmar"],
+                    mode="lines+markers", name="Calmar", yaxis="y1",
+                ))
+                if "precision" in df_meta.columns:
+                    fig_meta.add_trace(go.Scatter(
+                        x=df_meta["threshold"], y=df_meta["precision"],
+                        mode="lines+markers", name="Precision", yaxis="y2",
+                    ))
+                    fig_meta.add_trace(go.Scatter(
+                        x=df_meta["threshold"], y=df_meta["recall"],
+                        mode="lines+markers", name="Recall", yaxis="y2",
+                    ))
+                    fig_meta.add_trace(go.Scatter(
+                        x=df_meta["threshold"], y=df_meta["f1"],
+                        mode="lines+markers", name="F1", yaxis="y2",
+                    ))
+                fig_meta.update_layout(
+                    title="Meta-Labeling: Threshold vs Calmar / Precision / Recall / F1",
+                    template="plotly_dark",
+                    height=350,
+                    yaxis={"title": "Calmar"},
+                    yaxis2={"title": "Precision / Recall / F1", "overlaying": "y", "side": "right", "range": [0, 1]},
+                    legend={"orientation": "h"},
+                )
                 sections["s33_meta_label"] = {
                     "interpretation": meta_res["interpretation"],
                     "html": _fig_to_html(fig_meta)
