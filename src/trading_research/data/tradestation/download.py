@@ -151,8 +151,8 @@ def download_historical_bars(
 ) -> DownloadResult:
     """Download 1-minute bars for ``symbol`` over ``[start_date, end_date]``.
 
-    ``symbol`` is the *root* (e.g. ``"ZN"``); the instrument registry is
-    consulted for the actual TradeStation symbol (``"@ZN"``) and the data
+    ``symbol`` is the *root* (e.g. ``"6E"``); the instrument registry is
+    consulted for the actual TradeStation symbol (``"@EU"``) and the data
     source settings.
 
     Currently supported ``continuous_method``: ``"tradestation_continuous"``

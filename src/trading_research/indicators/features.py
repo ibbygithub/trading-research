@@ -77,7 +77,7 @@ def build_features(
     output_dir:
         Destination directory (``data/features/``).
     symbol:
-        Instrument symbol (e.g., ``"ZN"``).
+        Instrument symbol (e.g., ``"6E"``).
     feature_set_tag:
         Tag string for the feature set (e.g., ``"base-v1"``).
     feature_set_config:

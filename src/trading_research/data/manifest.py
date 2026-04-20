@@ -168,7 +168,7 @@ def build_raw_manifest(
     parquet_path:
         The RAW parquet being described.
     symbol:
-        Instrument symbol (e.g., ``"ZN"``, ``"TYH10"``).
+        Instrument symbol (e.g., ``"6E"``, ``"EUH25"``).
     raw_type:
         Category string: ``"contract"``, ``"bulk_download"``, or ``"smoke"``.
     description:
@@ -208,7 +208,7 @@ def build_clean_manifest(
     source_paths:
         The RAW source file(s) this was built from.
     symbol:
-        Instrument symbol (e.g., ``"ZN"``).
+        Instrument symbol (e.g., ``"6E"``).
     timeframe:
         Bar timeframe string (e.g., ``"5m"``, ``"1D"``).
     adjustment:

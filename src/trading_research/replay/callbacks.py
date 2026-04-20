@@ -57,7 +57,7 @@ def register_callbacks(
     Parameters
     ----------
     app:        The Dash app instance.
-    symbol:     Instrument symbol (e.g. "ZN") — used when reloading data on
+    symbol:     Instrument symbol (e.g. "6E") — used when reloading data on
                 date-range change.
     data_root:  Override for the data/ directory (used in tests).
     """

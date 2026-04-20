@@ -20,9 +20,11 @@ from typing import Annotated, Optional
 
 import typer
 
+from trading_research.core.instruments import InstrumentRegistry
+
 app = typer.Typer(
     name="trading-research",
-    help="ZN Forensic Trading Desk — pipeline automation.",
+    help="Trading Research Platform — pipeline automation.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -91,7 +93,7 @@ def backfill_manifests(
 
 @rebuild_app.command(name="clean")
 def rebuild_clean(
-    symbol: Annotated[str, typer.Option(help="Instrument symbol.")] = "ZN",
+    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E).")],
     data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Rebuild all CLEAN files for SYMBOL from cached RAW contracts.
@@ -104,7 +106,12 @@ def rebuild_clean(
 
     root = data_root or _DATA_ROOT
     try:
-        _rebuild_clean(symbol=symbol, data_root=root)
+        registry = InstrumentRegistry()
+        instrument = registry.get(symbol)
+        _rebuild_clean(instrument=instrument, data_root=root)
+    except KeyError as e:
+        typer.echo(f"ERROR: unknown symbol — {e}", err=True)
+        raise typer.Exit(code=2)
     except FileNotFoundError as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(code=2)
@@ -120,20 +127,24 @@ def rebuild_clean(
 
 @rebuild_app.command(name="features")
 def rebuild_features(
-    symbol: Annotated[str, typer.Option(help="Instrument symbol.")] = "ZN",
+    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E).")],
     feature_set: Annotated[str, typer.Option("--set", help="Feature set tag.")] = "base-v1",
     data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Rebuild FEATURES files for SYMBOL using the named feature set.
 
-    Example: uv run trading-research rebuild features --symbol ZN --set base-v1
+    Example: uv run trading-research rebuild features --symbol 6E --set base-v1
     """
     from trading_research.pipeline.rebuild import rebuild_features as _rebuild_features
-    from trading_research.utils.logging import get_logger
 
     root = data_root or _DATA_ROOT
     try:
-        _rebuild_features(symbol=symbol, feature_set_tag=feature_set, data_root=root)
+        registry = InstrumentRegistry()
+        instrument = registry.get(symbol)
+        _rebuild_features(instrument=instrument, feature_set_tag=feature_set, data_root=root)
+    except KeyError as e:
+        typer.echo(f"ERROR: unknown symbol — {e}", err=True)
+        raise typer.Exit(code=2)
     except FileNotFoundError as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(code=2)
@@ -168,7 +179,7 @@ def inventory(
 
 @app.command()
 def replay(
-    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. ZN).")] = "ZN",
+    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E).")],
     from_date: Annotated[Optional[str], typer.Option("--from", help="Window start YYYY-MM-DD.")] = None,
     to_date: Annotated[Optional[str], typer.Option("--to", help="Window end YYYY-MM-DD.")] = None,
     trades: Annotated[Optional[Path], typer.Option(help="Path to a trades JSON log.")] = None,

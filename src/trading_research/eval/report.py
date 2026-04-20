@@ -122,12 +122,12 @@ def generate_report(run_dir: Path, version: str = "v2") -> ReportPaths:
 
     # Detect strategy and symbol from trades
     strategy_id = trades_raw["strategy_id"].iloc[0] if "strategy_id" in trades_raw.columns else "unknown"
-    symbol = trades_raw["symbol"].iloc[0] if "symbol" in trades_raw.columns else "ZN"
+    symbol = trades_raw["symbol"].iloc[0] if "symbol" in trades_raw.columns else None
 
     # --- Load instrument ---
     try:
-        inst = load_instrument(symbol)
-    except KeyError:
+        inst = load_instrument(symbol) if symbol else None
+    except (KeyError, Exception):
         inst = None
 
     dollar_per_point = inst.point_value_usd if inst else 1000.0

@@ -51,8 +51,9 @@ instruments:
     overnight_initial_margin_usd: null
     session_open_et: "18:00"
     session_close_et: "17:00"
-    rth_open_et: "08:20"
-    rth_close_et: "15:00"
+    # FX CME: NY active session starts 08:00 ET (London/NY overlap); 08:20 is bond-pit legacy
+    rth_open_et: "08:00"
+    rth_close_et: "17:00"
     calendar_name: "CMEGlobex_FX"
     roll_method: "panama"
 
@@ -73,8 +74,9 @@ instruments:
     overnight_initial_margin_usd: null
     session_open_et: "18:00"
     session_close_et: "17:00"
-    rth_open_et: "08:20"
-    rth_close_et: "15:00"
+    # FX CME: NY active session starts 08:00 ET (London/NY overlap); 08:20 is bond-pit legacy
+    rth_open_et: "08:00"
+    rth_close_et: "17:00"
     calendar_name: "CMEGlobex_FX"
     roll_method: "panama"
 
@@ -95,7 +97,8 @@ instruments:
     overnight_initial_margin_usd: null
     session_open_et: "18:00"
     session_close_et: "17:00"
-    rth_open_et: "08:20"
-    rth_close_et: "15:00"
+    # FX CME: NY active session starts 08:00 ET (London/NY overlap); 08:20 is bond-pit legacy
+    rth_open_et: "08:00"
+    rth_close_et: "17:00"
     calendar_name: "CMEGlobex_FX"
     roll_method: "panama"

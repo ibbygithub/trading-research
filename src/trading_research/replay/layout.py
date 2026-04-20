@@ -39,7 +39,7 @@ def build_layout(
 
     Parameters
     ----------
-    symbol:   Instrument label shown in the header (e.g. "ZN").
+    symbol:   Instrument label shown in the header (e.g. "6E").
     from_dt:  Initial window start (used to pre-populate the date picker).
     to_dt:    Initial window end.
     figs:     Pre-built figures keyed by timeframe: "5m", "15m", "60m", "1D".
