@@ -574,6 +574,103 @@ def walkforward(
 
 
 # ---------------------------------------------------------------------------
+# stationarity
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def stationarity(
+    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E, ZN).")],
+    start: Annotated[Optional[str], typer.Option(help="Start date YYYY-MM-DD.")] = None,
+    end: Annotated[Optional[str], typer.Option(help="End date YYYY-MM-DD.")] = None,
+    timeframes: Annotated[str, typer.Option(help="Comma-separated timeframes to test.")] = "1m,5m,15m",
+    out: Annotated[Optional[Path], typer.Option(help="Override runs/ root.")] = None,
+) -> None:
+    """Run the stationarity suite (ADF, Hurst, OU) on CLEAN 1m bars for SYMBOL.
+
+    Writes parquet + JSON summary + markdown to runs/stationarity/<SYMBOL>/<YYYYMMDD-HHMM>/.
+
+    Example:
+        uv run trading-research stationarity --symbol ZN --start 2024-01-01 --end 2024-12-31
+    """
+    import glob as _glob
+    from datetime import datetime, timezone
+
+    import pandas as pd
+
+    from trading_research.core.instruments import InstrumentRegistry
+    from trading_research.stats.stationarity import run_stationarity_suite, write_report
+
+    # --- Resolve instrument ---
+    try:
+        registry = InstrumentRegistry()
+        instrument = registry.get(symbol)
+    except KeyError as e:
+        typer.echo(f"ERROR: unknown symbol — {e}", err=True)
+        raise typer.Exit(code=2)
+
+    # --- Find CLEAN 1m parquet ---
+    clean_dir = _DATA_ROOT / "clean"
+    patterns = [
+        str(clean_dir / f"{symbol}_1m_backadjusted_*.parquet"),
+        str(clean_dir / f"{symbol}_1m_unadjusted_*.parquet"),
+    ]
+    candidates: list[str] = []
+    for pat in patterns:
+        candidates.extend(_glob.glob(pat))
+
+    if not candidates:
+        typer.echo(
+            f"ERROR: no CLEAN 1m parquet found for {symbol} in {clean_dir}",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    typer.echo(f"Loading CLEAN bars: {[Path(c).name for c in candidates]}")
+    frames = [pd.read_parquet(p, engine="pyarrow") for p in sorted(candidates)]
+    bars = pd.concat(frames, ignore_index=True)
+
+    # Normalise timestamp column.
+    bars["timestamp_utc"] = pd.to_datetime(bars["timestamp_utc"], utc=True)
+    bars = bars.sort_values("timestamp_utc").reset_index(drop=True)
+
+    if start:
+        bars = bars[bars["timestamp_utc"] >= pd.Timestamp(start, tz="UTC")]
+    if end:
+        bars = bars[bars["timestamp_utc"] <= pd.Timestamp(end, tz="UTC")]
+
+    if bars.empty:
+        typer.echo("ERROR: No bars in the specified date range.", err=True)
+        raise typer.Exit(code=2)
+
+    typer.echo(
+        f"Bars: {len(bars):,}  "
+        f"({bars['timestamp_utc'].iloc[0].date()} to {bars['timestamp_utc'].iloc[-1].date()})"
+    )
+
+    # --- Run suite ---
+    tf_list = [t.strip() for t in timeframes.split(",") if t.strip()]
+    typer.echo(f"Running stationarity suite: timeframes={tf_list}")
+
+    report = run_stationarity_suite(instrument=instrument, bars=bars, timeframes=tf_list)
+
+    # --- Write outputs ---
+    runs_root = out or (Path(__file__).parents[3] / "runs")
+    run_ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M")
+    output_dir = runs_root / "stationarity" / symbol / run_ts
+    parquet_path, json_path, md_path = write_report(report, output_dir)
+
+    typer.echo(f"\nOutputs written to {output_dir}:")
+    typer.echo(f"  {parquet_path.name}")
+    typer.echo(f"  {json_path.name}")
+    typer.echo(f"  {md_path.name}")
+
+    # --- Print markdown summary ---
+    typer.echo("")
+    typer.echo(md_path.read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
