@@ -1,21 +1,71 @@
-# Session 27 — Benjamini-Hochberg + Composite Top-X Ranking
+# Session 27 — Hurst Fix + Benjamini-Hochberg + Composite Top-X Ranking
 
 **Agent fit:** either
-**Estimated effort:** M (2–4h)
+**Estimated effort:** L (4h+)
 **Depends on:** 26
-**Unblocks:** 29 (strategy work can be evaluated with proper multi-testing correction)
+**Unblocks:** 28 (Hurst fix required before first real stationarity run on 6E), 29
 
 ## Goal
 
-Implement Benjamini-Hochberg false-discovery-rate correction for multi-strategy and multi-feature testing, plus the composite top-X ranking (profit factor × max-DD-penalty × trade-count-floor) for the backtest HTML report.
+Three work items, in priority order:
 
-## Context
+1. **Fix the R/S Hurst estimator** (blocking session 28) — the session 26 implementation has a methodological defect that would cause VWAP spread mean reversion to be misclassified. Fix before any real data is run.
+2. **Benjamini-Hochberg FDR correction** — standard multi-testing correction for feature selection and multi-strategy evaluation.
+3. **Composite top-X ranking** — profit factor × max-DD-penalty × trade-count-floor for the backtest HTML report.
+
+## Context — Hurst R/S Defect
+
+The session 26 R/S implementation applies rescaled-range analysis to the input series **at the level**. This has a known behavior:
+
+- A random walk (I(1) level) gives H ≈ 1.0 — correct.
+- Any stationary AR(1) process with **positive φ** gives H > 0.5 — classified as TRENDING or RANDOM_WALK, regardless of how fast it reverts to its mean.
+- Only a series with **negative autocorrelation** (oscillating, φ < 0) gives H < 0.5 — classified as MEAN_REVERTING.
+
+The VWAP spread in practice behaves like an OU process with **positive φ** at the bar level — the price overshoots VWAP and takes several bars to come back, meaning the spread has positive autocorrelation at lag 1 even though it is stationary and mean-reverting. The current R/S implementation will classify this as RANDOM_WALK or TRENDING, making the composite label INDETERMINATE, which blocks the session 29 strategy class decision.
+
+The fix is to replace R/S with **DFA (Detrended Fluctuation Analysis)**. DFA computes the Hurst exponent by measuring how local fluctuations (after removing local polynomial trends) scale with window size. It gives:
+
+- H < 0.5: mean-reverting (anti-persistent fluctuations), regardless of φ sign
+- H ≈ 0.5: random walk
+- H > 0.5: trending / persistent long-range memory
+
+For an OU process, DFA gives H significantly below 0.5 even when φ is positive. This is the correct discriminant for the "is this spread tradeable for mean reversion?" question.
+
+**Reference:** Peng et al. (1994), "Mosaic organization of DNA nucleotides." DFA is standard in computational biology and financial time series (Mantegna & Stanley, 1999, ch. 4).
+
+## Context — BH and Composite (unchanged from original spec)
 
 When the platform tests multiple strategy variants or evaluates multiple features for predictive power, naive p-values inflate the false-discovery rate. Benjamini-Hochberg controls FDR and is the standard multi-testing correction for quant work. It is more powerful than Bonferroni while still controlling the expected false-discovery rate.
 
 Separately, Ibby's preferred ranking method for strategy results is composite: profit factor, max drawdown, trade count — in a single score that filters out strategies with too few trades regardless of other metrics.
 
 ## In scope
+
+### Part 1 — Hurst fix (do this first)
+
+In `src/trading_research/stats/stationarity.py`:
+
+- Add `dfa_hurst(series: pd.Series, min_window: int = 10, max_window: int | None = None, poly_order: int = 1) -> HurstResult` — DFA estimator. Algorithm:
+  1. Choose window sizes `[8, 16, 32, 64, 128, 256, 512]` (same as R/S, respecting min/max).
+  2. For each window size `n`, split series into non-overlapping segments of length `n`.
+  3. For each segment, fit a polynomial of degree `poly_order` (default 1 = linear) and compute the RMS of residuals (the "fluctuation function" F(n)).
+  4. Average F(n) across segments.
+  5. Log-log regression of mean F(n) vs n. Slope = Hurst exponent.
+- Change `hurst_exponent` to call `dfa_hurst` by default. Keep `_rs_hurst` as a private function for reference/comparison. The public API (`HurstResult`, `hurst_exponent`) is unchanged.
+- Update the docstring on `hurst_exponent` to document the switch to DFA and the reason.
+- Update `docs/design/stationarity-suite.md` §2.2 to replace the R/S description with DFA, and correct §8.2's statement that "AR(1) φ=0.5 should return H < 0.5" (correct for DFA, was incorrect for R/S).
+
+Update tests in `tests/stats/test_stationarity_hurst.py`:
+- `test_hurst_brownian_motion` — DFA on white noise or random walk returns H ≈ 0.5 (within ±0.10).
+- `test_hurst_trending_series` — DFA on cumulative sum with drift returns H > 0.55.
+- `test_hurst_mean_reverting_series` — DFA on AR(1) φ=0.5 (slow OU) returns H < 0.45. This is the key test that was failing with R/S.
+- `test_hurst_random_walk_levels_high` — remove or update (R/S gives H≈1.0 for levels; DFA behavior may differ).
+- `test_hurst_ar1_positive_phi_persistent` — remove (this was documenting the R/S defect, not desired behavior).
+
+Add a regression test:
+- `test_dfa_vs_rs_comparison` — on a known OU process (AR(1) φ=0.5), confirm that DFA gives H < 0.45 while the old R/S gave H > 0.5. This documents why the switch was made.
+
+### Part 2 — Benjamini-Hochberg
 
 Create under `src/trading_research/stats/`:
 
@@ -54,9 +104,13 @@ Create tests:
 - Do NOT add new ranking methods beyond composite. One is enough.
 - Do NOT refactor the HTML report engine — only add new sections.
 - Do NOT apply BH anywhere it isn't appropriate (e.g., to a single strategy's own trades; BH is for *sets of hypothesis tests*, not for P&L evaluation).
+- Do NOT rewrite the full stationarity suite — only replace the Hurst estimator in `hurst_exponent`. The ADF and OU functions are unchanged.
 
 ## Acceptance tests
 
+- [ ] `uv run pytest tests/stats/test_stationarity_hurst.py -v` — all tests pass with DFA-based Hurst.
+- [ ] `test_hurst_mean_reverting_series` confirms DFA gives H < 0.45 for AR(1) φ=0.5 (this test FAILED in session 26 with R/S — its passage here is the acceptance signal for the fix).
+- [ ] `test_dfa_vs_rs_comparison` documents that R/S gave H > 0.5 for the same series (regression test).
 - [ ] `uv run pytest tests/stats/test_benjamini_hochberg.py tests/eval/test_composite_ranking.py -v` passes.
 - [ ] `uv run pytest` — full suite passes.
 - [ ] A generated backtest HTML report, when given multi-strategy input, shows the "Top 10 by composite score" section.
@@ -65,17 +119,52 @@ Create tests:
 ## Definition of done
 
 - [ ] All tests pass.
+- [ ] `docs/design/stationarity-suite.md` §2.2 updated to describe DFA; §8.2 corrected to match DFA's actual behavior.
 - [ ] HTML report visual check — render a sample report and verify the new sections render correctly.
-- [ ] Work log includes the composite formula and its rationale, plus a before/after BH example (10 strategies, show which pass raw vs BH).
-- [ ] Committed on feature branch `session-27-bh-composite`.
+- [ ] Work log includes: (a) DFA canonical test values on AR(1) φ=0.5 (the series that broke R/S), (b) the composite formula and its rationale, (c) a before/after BH example.
+- [ ] Committed on feature branch `session-27-hurst-fix-bh-composite`.
+- [ ] Session 26 work-log "Observed Debt" item about design doc §8.2 wording is resolved.
 
 ## Persona review
 
-- **Data scientist: required.** BH implementation, composite formula justification, appropriate use of multi-testing correction.
+- **Data scientist: required.** DFA implementation correctness, BH implementation, composite formula justification, appropriate use of multi-testing correction. Must sign off that DFA gives the expected H values on the canonical test series before session 28 runs.
 - **Mentor: optional.** May weigh in on whether composite formula weights match how a real trader thinks about strategy quality.
-- **Architect: optional.** Reviews module placement and coupling.
+- **Architect: optional.** Reviews that the R/S → DFA switch is a clean replacement (no leaking private functions into public API).
 
 ## Design notes
+
+### DFA algorithm
+
+```python
+def dfa_hurst(
+    series: pd.Series,
+    min_window: int = 10,
+    max_window: int | None = None,
+    poly_order: int = 1,
+) -> HurstResult:
+    arr = np.asarray(series.dropna(), dtype=float)
+    # Integrate (cumulative sum of mean-subtracted series) before DFA
+    arr = np.cumsum(arr - np.mean(arr))
+    n = len(arr)
+    # ... window loop same structure as R/S ...
+    # For each window w and each segment:
+    #   1. fit polynomial of degree poly_order to segment
+    #   2. compute RMS of residuals → F(w) for that segment
+    # Average F(w) across segments, then log-log regression
+    # slope = Hurst exponent
+```
+
+The cumulative-sum step (integrating the series before DFA) is standard in the original DFA formulation. For a random walk (already integrated), this would double-integrate — so input series should be the **raw level** (spread or return series), not pre-integrated. The function handles this internally.
+
+**Expected DFA values (approximate, finite-sample, n=500):**
+
+| Series type | Expected H | Threshold |
+|---|---|---|
+| White noise / returns | ≈ 0.5 | — |
+| Random walk (level) | ≈ 1.0 | — |
+| AR(1) φ=0.5 (OU-like spread) | < 0.45 | MEAN_REVERTING |
+| AR(1) φ=-0.7 (oscillating) | < 0.30 | MEAN_REVERTING (strong) |
+| Trending (cumsum + drift) | > 0.55 | TRENDING |
 
 ### Composite score formula
 
@@ -148,4 +237,6 @@ Do not apply to:
 
 ## Success signal
 
-A sample HTML report from three strategy variants shows the composite ranking table with the correct top-3 order. A synthetic test with 100 p-values (5 truly significant, 95 null) has BH correctly identifying approximately the 5 at FDR = 0.05.
+**Hurst fix:** `test_hurst_mean_reverting_series` passes — DFA on AR(1) φ=0.5 returns H < 0.45. This test FAILED in session 26 with R/S; its passage is the go/no-go signal for session 28's real 6E run.
+
+**BH + ranking:** A sample HTML report from three strategy variants shows the composite ranking table with the correct top-3 order. A synthetic test with 100 p-values (5 truly significant, 95 null) has BH correctly identifying approximately the 5 at FDR = 0.05.
