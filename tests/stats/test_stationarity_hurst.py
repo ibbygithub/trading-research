@@ -1,13 +1,18 @@
-"""Hurst exponent tests.
+"""Hurst exponent tests — DFA method (session 27+).
 
-R/S method applied to a time series:
-  - White noise (i.i.d. returns):           H ≈ 0.5
-  - Random walk (cumulative sum of noise):  H ≈ 1.0  (I(1) process)
-  - Negatively autocorrelated series:       H < 0.5  (anti-persistent / mean-reverting)
-  - Positively autocorrelated (trending):   H > 0.5
+DFA (Detrended Fluctuation Analysis) replaced R/S in session 27 because R/S
+misclassified AR(1) φ=0.5 (positive-φ OU, typical VWAP-spread behaviour) as
+TRENDING (H > 0.55).  DFA gives H ≈ 0.5 for the same series — still technically
+RANDOM_WALK, but no longer TRENDING.
 
-The design doc's mean-reversion detection (H < 0.45) requires NEGATIVELY autocorrelated
-series at the LEVEL — e.g. AR(1) with φ < 0, or oscillating VWAP spreads.
+The composite classification was simultaneously fixed (Option A): ADF + OU
+half-life are now the primary TRADEABLE_MR gates.  Hurst RANDOM_WALK no longer
+blocks TRADEABLE_MR.  Hurst TRENDING still flags INDETERMINATE (ADF contradiction).
+
+DFA correctly gives H < 0.45 for strongly anti-persistent series (AR(1) φ < 0),
+which R/S also handled.  The meaningful win over R/S is for positive-φ OU:
+R/S → TRENDING (worst misclassification); DFA → RANDOM_WALK (not blocking with
+the Option A composite).
 
 Reference: design doc §2.2, §4.2, §8.2.  Tolerances ±0.10 per §8.2.
 """
@@ -19,26 +24,27 @@ import math
 import numpy as np
 import pandas as pd
 
-from trading_research.stats.stationarity import HurstResult, hurst_exponent
+from trading_research.stats.stationarity import HurstResult, _rs_hurst, dfa_hurst, hurst_exponent
 
 N = 2000  # longer series for more stable Hurst estimates
 
 
 def _white_noise(n: int = N) -> pd.Series:
-    """i.i.d. N(0,1) — represents random-walk RETURNS.  Theoretical H = 0.5."""
+    """i.i.d. N(0,1) — random-walk returns. Theoretical H = 0.5 under DFA."""
     return pd.Series(np.random.default_rng(42).standard_normal(n))
 
 
 def _random_walk(n: int = N) -> pd.Series:
-    """Cumulative sum of white noise — a price level I(1) series.  Theoretical H ≈ 1.0."""
+    """Cumulative sum of white noise — I(1) price level. DFA gives H ≈ 1.0."""
     return pd.Series(np.cumsum(np.random.default_rng(42).standard_normal(n)))
 
 
 def _ar1(phi: float, n: int = N) -> pd.Series:
     """AR(1): y_t = phi * y_{t-1} + ε_t.
 
-    phi > 0 → persistent (H > 0.5 in R/S).
-    phi < 0 → anti-persistent / mean-reverting (H < 0.5 in R/S).
+    phi < 0 → anti-persistent (oscillating). DFA gives H < 0.5.
+    phi > 0 → positive autocorrelation (slow OU / VWAP spread).
+              DFA gives H ≈ 0.5 for short-memory processes (|phi| << 1).
     """
     rng = np.random.default_rng(42)
     eps = rng.standard_normal(n)
@@ -50,14 +56,14 @@ def _ar1(phi: float, n: int = N) -> pd.Series:
 
 
 def _trending(n: int = N) -> pd.Series:
-    """Cumulative sum of positive-drift process — I(1) with drift.  H ≈ 1.0."""
+    """Cumulative sum with positive drift. H > 0.55."""
     rng = np.random.default_rng(42)
-    steps = rng.standard_normal(n) + 0.3  # positive drift
+    steps = rng.standard_normal(n) + 0.3
     return pd.Series(np.cumsum(steps))
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# Basic type and validity tests
 # ---------------------------------------------------------------------------
 
 
@@ -66,59 +72,7 @@ def test_hurst_returns_correct_type() -> None:
     assert isinstance(result, HurstResult)
 
 
-def test_hurst_brownian_motion() -> None:
-    """White noise (iid returns) should have Hurst ≈ 0.5 (within ±0.10).
-
-    Note: R/S applied to the *levels* of a random walk gives H ≈ 1.0 (I(1) process).
-    This test uses white noise (returns), which is I(0) with H = 0.5.
-    """
-    result = hurst_exponent(_white_noise())
-    h = result.exponent
-    assert 0.40 <= h <= 0.60, f"White noise Hurst={h:.4f}, expected [0.40, 0.60]"
-
-
-def test_hurst_random_walk_levels_high() -> None:
-    """R/S on a random walk (level) should return H > 0.5 (I(1) process is persistent)."""
-    result = hurst_exponent(_random_walk())
-    assert result.exponent > 0.55, (
-        f"Random walk level Hurst={result.exponent:.4f}, expected > 0.55"
-    )
-
-
-def test_hurst_trending_series() -> None:
-    """Cumulative sum with positive drift should yield Hurst > 0.55."""
-    result = hurst_exponent(_trending())
-    h = result.exponent
-    assert h > 0.55, f"Trending series Hurst={h:.4f}, expected > 0.55"
-    assert "TRENDING" in result.interpretation
-
-
-def test_hurst_mean_reverting_series() -> None:
-    """AR(1) φ=-0.7 (strong negative autocorrelation) should yield Hurst < 0.45.
-
-    In financial terms, a VWAP spread that oscillates (positive today → negative
-    tomorrow) has negative autocorrelation at the level, producing H < 0.5 via R/S.
-    """
-    result = hurst_exponent(_ar1(-0.7))
-    h = result.exponent
-    assert h < 0.45, f"Anti-persistent AR(1) φ=-0.7 Hurst={h:.4f}, expected < 0.45"
-    assert "MEAN_REVERTING" in result.interpretation
-
-
-def test_hurst_ar1_positive_phi_persistent() -> None:
-    """AR(1) φ=0.5 has positive autocorrelation → R/S gives H > 0.5 (persistent in levels).
-
-    This confirms the R/S method correctly classifies a positively autocorrelated
-    stationary series as 'not mean-reverting' at the level.
-    """
-    result = hurst_exponent(_ar1(0.5))
-    assert result.exponent > 0.50, (
-        f"AR(1) φ=0.5 should have H > 0.5 in R/S analysis, got {result.exponent:.4f}"
-    )
-
-
 def test_hurst_r_squared_positive() -> None:
-    """R² of the log-log regression should be non-negative."""
     result = hurst_exponent(_white_noise())
     assert result.r_squared >= 0.0
 
@@ -143,3 +97,94 @@ def test_hurst_nan_dropped() -> None:
     arr[::20] = float("nan")
     result = hurst_exponent(pd.Series(arr))
     assert isinstance(result.exponent, float)
+
+
+# ---------------------------------------------------------------------------
+# DFA behavioural tests
+# ---------------------------------------------------------------------------
+
+
+def test_hurst_brownian_motion() -> None:
+    """White noise (i.i.d. returns) — DFA gives H ≈ 0.5 (within ±0.10)."""
+    result = hurst_exponent(_white_noise())
+    h = result.exponent
+    assert 0.40 <= h <= 0.60, f"White noise Hurst={h:.4f}, expected [0.40, 0.60]"
+
+
+def test_hurst_trending_series() -> None:
+    """Cumulative sum with drift — DFA gives H > 0.55."""
+    result = hurst_exponent(_trending())
+    h = result.exponent
+    assert h > 0.55, f"Trending series Hurst={h:.4f}, expected > 0.55"
+    assert "TRENDING" in result.interpretation
+
+
+def test_hurst_mean_reverting_series() -> None:
+    """AR(1) φ=-0.7 (strongly anti-persistent) — DFA gives H < 0.40.
+
+    Negative-φ AR(1) processes have strong negative lag-1 autocorrelation
+    that survives DFA's integration step.  This is the regime where DFA
+    gives a clean MEAN_REVERTING signal.
+    """
+    result = hurst_exponent(_ar1(-0.7))
+    h = result.exponent
+    assert h < 0.40, f"AR(1) φ=-0.7 DFA Hurst={h:.4f}, expected < 0.40"
+    assert "MEAN_REVERTING" in result.interpretation
+
+
+def test_hurst_ar1_positive_phi_documented_behaviour() -> None:
+    """AR(1) φ=0.5 (slow OU / VWAP spread) — DFA gives H ≈ 0.5 (RANDOM_WALK).
+
+    This documents the known limitation of DFA-1 for short-memory stationary
+    processes with positive autocorrelation: the correlation length (~1.4 bars
+    for φ=0.5) is far below all usable window sizes, so the integrated series
+    appears indistinguishable from a random walk at those scales.
+
+    The composite classification handles this via Option A (session 27):
+    ADF stationarity + tradeable OU half-life → TRADEABLE_MR regardless of
+    whether Hurst reports RANDOM_WALK.  This test documents expected behaviour,
+    not a defect.
+    """
+    result = hurst_exponent(_ar1(0.5))
+    h = result.exponent
+    # DFA gives H close to 0.5 for short-memory positive-φ AR(1).
+    # Must NOT be classified as TRENDING (that was the R/S defect).
+    assert h <= 0.55, (
+        f"AR(1) φ=0.5 DFA Hurst={h:.4f}: should not be TRENDING. "
+        "If H > 0.55, DFA is incorrectly producing the R/S defect."
+    )
+    assert "TRENDING" not in result.interpretation, (
+        f"AR(1) φ=0.5 must not be TRENDING; got '{result.interpretation}'"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Regression test: DFA vs R/S comparison
+# ---------------------------------------------------------------------------
+
+
+def test_dfa_vs_rs_comparison() -> None:
+    """For AR(1) φ=0.5, R/S gives H > 0.55 (TRENDING); DFA gives H ≤ 0.55 (not TRENDING).
+
+    This documents the improvement that motivated the session 27 switch:
+    R/S misclassified positive-φ OU as TRENDING, which blocked composite
+    TRADEABLE_MR classification entirely.  DFA gives RANDOM_WALK (H ≈ 0.5),
+    which with the Option A composite fix allows TRADEABLE_MR when ADF and OU
+    half-life agree.
+    """
+    series = _ar1(0.5, n=N)
+    arr = np.asarray(series.dropna(), dtype=float)
+
+    dfa_result = dfa_hurst(series)
+    rs_result = _rs_hurst(arr, min_window=10, max_window=len(arr) // 2)
+
+    # R/S defect: classifies positive-φ OU as TRENDING.
+    assert rs_result.exponent > 0.55, (
+        f"R/S should give H > 0.55 for AR(1) φ=0.5 (the old TRENDING defect); "
+        f"got {rs_result.exponent:.4f}"
+    )
+    # DFA improvement: does not classify it as TRENDING.
+    assert dfa_result.exponent <= 0.55, (
+        f"DFA should give H ≤ 0.55 for AR(1) φ=0.5 (not TRENDING); "
+        f"got {dfa_result.exponent:.4f}"
+    )

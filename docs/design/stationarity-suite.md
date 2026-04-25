@@ -71,31 +71,53 @@ The suite records `adf_statistic`, `p_value`, and `n_lags_used`.
 with φ = 0.9) to within floating-point tolerance. This check is a required
 unit test in session 26.
 
-### 2.2 Hurst Exponent — Rescaled-Range Method
+### 2.2 Hurst Exponent — DFA (Detrended Fluctuation Analysis)
 
-**Implementation:** Custom, using the R/S (rescaled range) estimator. The
-`hurst` PyPI package is an option but is poorly maintained and may be
-unavailable in future Python versions. Implement locally. The rescaled-range
-method is described in Hurst (1951) and summarized in Lo (1991).
+**Session 27 change:** R/S was replaced with DFA. See §8.2 and §8.3 for
+the rationale and the composite classification change that accompanies it.
+
+**Implementation:** Custom DFA-1 (first-order polynomial detrending).
+Reference: Peng et al. (1994), "Mosaic organization of DNA nucleotides."
 
 **Algorithm:**
 
-1. For each sub-window size `n` in `[8, 16, 32, 64, 128, 256, 512]` (or fewer
-   if the series is shorter), split the series into non-overlapping segments of
-   length `n`.
-2. For each segment, compute `R/S` = (max cumulative deviation − min cumulative
-   deviation) / standard deviation.
-3. Average `R/S` across segments for each `n`.
-4. Fit `log(mean_RS)` vs `log(n)` by OLS. The slope is the Hurst exponent.
+1. Mean-subtract the input series and compute the cumulative sum (integrate).
+2. For each window size `w` in `[8, 16, 32, 64, 128, 256, 512]` (or fewer
+   if the series is shorter), split the integrated series into non-overlapping
+   segments of length `w`.
+3. For each segment, fit a polynomial of degree `poly_order` (default 1 =
+   linear) and compute the RMS of residuals — the fluctuation function F(w).
+4. Average F(w) across segments for each `w`.
+5. Fit `log(mean_F)` vs `log(w)` by OLS. The slope is the Hurst exponent.
 
-**Range of window sizes:** starts at 8 (minimum meaningful segment) up to
-`len(series) // 2` (to have at least 2 segments). If the series has fewer than
-32 bars, return NaN and log a warning; do not interpolate.
+**Why DFA over R/S:** R/S applies rescaled-range analysis to the raw series.
+For any AR(1) process with **positive φ**, R/S returns H > 0.5 — classifying
+it as TRENDING or RANDOM_WALK. A VWAP spread behaves as an OU process with
+positive φ at the bar level (price overshoots VWAP and takes several bars to
+return), giving R/S H ≈ 0.65 even though the series is stationary. DFA does
+not exhibit this defect for the TRENDING misclassification: for the same
+series, DFA gives H ≈ 0.5 (RANDOM_WALK), which is less wrong and, with the
+§4.4 composite fix, no longer blocks TRADEABLE_MR classification.
 
-**Dependencies:** `numpy`, `scipy.stats.linregress` (already in the
-environment). No new packages.
+**Known limitation:** For **short-memory** stationary processes (AR(1) with
+any φ, correlation length < 8 bars), DFA gives H ≈ 0.5 regardless of the
+sign of φ. DFA cannot distinguish a mean-reverting AR(1) φ=0.5 from a random
+walk at the window scales used. Strongly anti-persistent processes (φ < −0.5)
+are correctly detected as mean-reverting (H < 0.45). See §4.4 and §8.3 for
+how the composite classification handles this limitation.
 
-**Output:** single float H ∈ (0, 1).
+**Range of window sizes:** starts at min_window (default 10) up to
+`len(series) // 2`. If the series has fewer than 32 bars, return NaN and log
+a warning; do not interpolate.
+
+**The old R/S implementation** is retained as the private function
+`_rs_hurst()` in `stationarity.py` for comparison and regression testing.
+Do not expose it in the public API.
+
+**Dependencies:** `numpy`, `scipy.stats.linregress`. No new packages.
+
+**Output:** single float H ∈ (0, ∞) — though in practice H ∈ (0, 1.5) for
+the series tested in this project.
 
 ### 2.3 OU Half-Life — Ornstein-Uhlenbeck OLS Fit
 
@@ -353,16 +375,60 @@ directly. This ensures the wrapper adds no transformation errors.
 
 Synthetic series length: 500 observations. Random seed: 42.
 
-### 8.2 Hurst reference check
+### 8.2 Hurst reference check (updated session 27 — DFA replaces R/S)
 
-A geometric random walk (φ=1 AR(1)) should return H ≈ 0.5. An AR(1) with
-φ=0.5 should return H < 0.5. An AR(1) with φ=0.95 (near unit root) should
-return H close to but below 0.5 (persistent but not truly trending — the
-distinguisher). A simple linear trend should return H > 0.5.
+**Previous (R/S, session 26):** "AR(1) φ=0.5 should return H < 0.5." This
+claim was incorrect. R/S on AR(1) φ=0.5 gives H > 0.5 (TRENDING), which is
+a methodological defect — not a test bug.
 
-Tolerance for reference checks: ±0.10 of the known theoretical value.
-Finite-sample estimators of H are noisy; demanding tighter tolerance would
-make the test brittle.
+**Current (DFA, session 27):**
+
+| Series | DFA expected H | Notes |
+|---|---|---|
+| White noise (i.i.d. returns) | ≈ 0.5 | |
+| Random walk (level, I(1)) | ≈ 1.0 | |
+| AR(1) φ=0.5 (slow OU) | ≈ 0.5 (RANDOM_WALK) | See §8.3 for composite handling |
+| AR(1) φ=−0.7 (anti-persistent) | < 0.40 (MEAN_REVERTING) | |
+| Cumsum + drift (trending) | > 0.55 (TRENDING) | |
+
+**Known DFA limitation:** For any short-memory stationary AR(1) process
+(|φ| < 1, correlation length < 8 bars), DFA gives H ≈ 0.5 regardless of φ
+sign. This is theoretically correct: DFA cannot distinguish short-range mean
+reversion from a random walk at the window scales used (8–512 bars), because
+the integrated series is indistinguishable from a random walk at those scales.
+Strongly anti-persistent processes (φ < −0.5) ARE correctly detected.
+
+**Key improvement over R/S:** For AR(1) φ=0.5, R/S gave H ≈ 0.65 (TRENDING);
+DFA gives H ≈ 0.5 (RANDOM_WALK). TRENDING was the harmful classification because
+it blocked TRADEABLE_MR; RANDOM_WALK is benign with the session 27 composite fix.
+
+Tolerance for reference checks: ±0.10. Finite-sample estimators of H are
+noisy; demanding tighter tolerance would make the test brittle.
+
+### 8.3 Composite classification — Hurst RANDOM_WALK for positive-φ OU (session 27)
+
+This section documents the session 27 composite classification change (Option A).
+
+**Problem:** AR(1) φ=0.5 (typical VWAP spread behaviour) gets H ≈ 0.5 from
+DFA. Under the original composite logic, H ≈ 0.5 → RANDOM_WALK → blocks
+TRADEABLE_MR even when ADF strongly rejects the unit root and OU half-life is
+in the tradeable range.
+
+**Fix:** `_composite_classification()` was updated so that ADF + OU half-life
+are the **primary gates** for TRADEABLE_MR. Hurst RANDOM_WALK (H ∈ [0.45, 0.55])
+no longer blocks TRADEABLE_MR. Hurst TRENDING (H > 0.55) still produces
+INDETERMINATE — a genuine ADF/Hurst contradiction worth flagging.
+
+**Rationale:** ADF rejection of the unit root is a formal hypothesis test
+that the series is stationary. OU half-life confirms the reversion speed is
+tradeable. Together, these are sufficient evidence for mean-reversion candidacy.
+Hurst provides additional context but is not reliable enough for short-memory
+processes to serve as a hard gate.
+
+**Effect:** A VWAP spread with ADF p < 0.01, tradeable OU half-life, and DFA
+H ≈ 0.5 is now correctly classified as TRADEABLE_MR. Previously it was
+classified as INDETERMINATE or RANDOM_WALK and silently excluded from strategy
+consideration.
 
 ### 8.3 OU half-life reference check
 

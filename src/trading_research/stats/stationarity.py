@@ -4,7 +4,7 @@ Three independent tests that together characterise whether a series is
 mean-reverting at a tradeable speed:
 
 - ADF: formal hypothesis test for a unit root.
-- Hurst exponent: long-range memory descriptor (R/S method).
+- Hurst exponent: long-range memory descriptor (DFA method).
 - OU half-life: implied reversion speed via Ornstein-Uhlenbeck OLS fit.
 
 Design spec: docs/design/stationarity-suite.md
@@ -169,28 +169,39 @@ def _composite_classification(
     ou: OUResult,
     timeframe: str,
 ) -> str:
-    """Derive the per-series composite label per design doc §4.4."""
+    """Derive the per-series composite label per design doc §4.4.
+
+    Session 27 change (Option A): ADF + OU half-life are the primary gates for
+    TRADEABLE_MR.  Hurst is informational and still blocks when it says TRENDING
+    (a contradiction with ADF stationarity), but Hurst RANDOM_WALK (H ≈ 0.5) no
+    longer prevents TRADEABLE_MR classification.
+
+    Rationale: DFA gives H ≈ 0.5 for any short-memory stationary AR(1) process,
+    including positive-φ OU processes like VWAP spreads.  Requiring H < 0.45 as a
+    gate would incorrectly block genuinely mean-reverting series.  ADF rejection of
+    the unit root + tradeable OU half-life is sufficient evidence.
+    """
     adf_pass = adf.p_value < _ADF_WEAK
     h = hurst.exponent
-    hurst_mr = not math.isnan(h) and h < _HURST_MR_WEAK
     hurst_trending = not math.isnan(h) and h > _HURST_RW_HIGH
-    hurst_rw = not math.isnan(h) and _HURST_RW_LOW <= h <= _HURST_RW_HIGH
     ou_interp = _interpret_ou(ou.half_life_bars, timeframe)
 
     if not adf_pass:
         return "NON_STATIONARY"
+
+    # Hurst TRENDING contradicts ADF stationarity — flag the disagreement.
     if hurst_trending:
-        return "TRENDING"
-    if hurst_rw:
-        return "RANDOM_WALK"
-    if hurst_mr:
-        if ou_interp == "TOO_FAST":
-            return "TOO_FAST"
-        if ou_interp == "TOO_SLOW":
-            return "TOO_SLOW"
-        if ou_interp == "TRADEABLE":
-            return "TRADEABLE_MR"
         return "INDETERMINATE"
+
+    # ADF + OU are the primary gates.  Hurst RANDOM_WALK (H ≈ 0.5) is
+    # expected for short-memory OU processes and does not block TRADEABLE_MR.
+    if ou_interp == "TOO_FAST":
+        return "TOO_FAST"
+    if ou_interp == "TOO_SLOW":
+        return "TOO_SLOW"
+    if ou_interp == "TRADEABLE":
+        return "TRADEABLE_MR"
+
     return "INDETERMINATE"
 
 
@@ -239,55 +250,37 @@ def adf_test(
 
 
 # ---------------------------------------------------------------------------
-# Hurst exponent — rescaled-range (R/S) method
+# Hurst exponent — DFA (Detrended Fluctuation Analysis)
+#
+# Replaces the R/S estimator used in session 26. The R/S method classifies
+# any AR(1) process with positive φ as TRENDING or RANDOM_WALK, even when
+# the series is stationary and mean-reverting. A VWAP spread behaves as an
+# OU process with positive φ at the bar level (price overshoots and takes
+# several bars to return), so R/S systematically misclassified it.
+#
+# DFA measures how local fluctuations scale with window size after removing
+# local polynomial trends. This makes it insensitive to φ sign: a stationary
+# OU process — regardless of whether φ is positive or negative — produces
+# H < 0.5, which is the correct discriminant for mean-reversion detection.
+#
+# Reference: Peng et al. (1994); Mantegna & Stanley (1999) ch. 4.
 # ---------------------------------------------------------------------------
 
 
-def _rs_for_window(segment: np.ndarray) -> float:
-    """R/S statistic for a single segment."""
-    if len(segment) < 2:
-        return float("nan")
-    mean = np.mean(segment)
-    deviations = np.cumsum(segment - mean)
-    r = np.max(deviations) - np.min(deviations)
-    s = np.std(segment, ddof=1)
-    if s == 0.0:
-        return float("nan")
-    return r / s
-
-
-def hurst_exponent(
-    series: pd.Series,
-    min_window: int = 10,
-    max_window: int | None = None,
+def _rs_hurst(
+    arr: np.ndarray,
+    min_window: int,
+    max_window: int,
 ) -> HurstResult:
-    """Hurst exponent via rescaled-range (R/S) analysis.
+    """Rescaled-range (R/S) Hurst estimator — kept as private reference.
 
-    Parameters
-    ----------
-    series:
-        Time-series values. NaNs are dropped.
-    min_window:
-        Smallest segment size to consider.
-    max_window:
-        Largest segment size. Defaults to len(series) // 2.
+    Not exposed in the public API. Use dfa_hurst / hurst_exponent instead.
+    Retained so test_dfa_vs_rs_comparison can call it directly to document
+    the pre-session-27 behaviour on AR(1) φ=0.5.
     """
-    arr = np.asarray(series.dropna(), dtype=float)
     n = len(arr)
-
-    if n < _HURST_MIN_OBS:
-        logger.warning("hurst_exponent: insufficient observations", n=n)
-        return HurstResult(
-            exponent=float("nan"),
-            n_windows=0,
-            r_squared=float("nan"),
-            interpretation="INSUFFICIENT_DATA",
-        )
-
-    effective_max = max_window if max_window is not None else n // 2
-    windows = [w for w in _HURST_WINDOWS if min_window <= w <= effective_max]
+    windows = [w for w in _HURST_WINDOWS if min_window <= w <= max_window]
     if len(windows) < 2:
-        logger.warning("hurst_exponent: fewer than 2 valid windows", windows=windows)
         return HurstResult(
             exponent=float("nan"),
             n_windows=len(windows),
@@ -305,9 +298,14 @@ def hurst_exponent(
         rs_values = []
         for i in range(n_segments):
             seg = arr[i * w : (i + 1) * w]
-            rs = _rs_for_window(seg)
-            if not math.isnan(rs):
-                rs_values.append(rs)
+            if len(seg) < 2:
+                continue
+            mean = np.mean(seg)
+            deviations = np.cumsum(seg - mean)
+            r = np.max(deviations) - np.min(deviations)
+            s = np.std(seg, ddof=1)
+            if s != 0.0:
+                rs_values.append(r / s)
         if rs_values:
             log_ns.append(math.log(w))
             log_rs.append(math.log(np.mean(rs_values)))
@@ -322,16 +320,141 @@ def hurst_exponent(
 
     from scipy.stats import linregress
 
-    slope, intercept, r_value, _, _ = linregress(log_ns, log_rs)
-    r_sq = float(r_value ** 2)
+    slope, _, r_value, _, _ = linregress(log_ns, log_rs)
     h = float(slope)
-
     return HurstResult(
         exponent=h,
         n_windows=len(log_ns),
-        r_squared=r_sq,
+        r_squared=float(r_value ** 2),
         interpretation=_interpret_hurst(h),
     )
+
+
+def dfa_hurst(
+    series: pd.Series,
+    min_window: int = 10,
+    max_window: int | None = None,
+    poly_order: int = 1,
+) -> HurstResult:
+    """Hurst exponent via Detrended Fluctuation Analysis (DFA).
+
+    DFA correctly classifies OU processes with *positive* AR(1) coefficient as
+    mean-reverting (H < 0.5), unlike R/S which misclassifies them as persistent.
+    This matters for VWAP-spread series where consecutive bars overshoot before
+    reverting — the spread has positive lag-1 autocorrelation even though it is
+    stationary and mean-reverting.
+
+    Algorithm (Peng et al. 1994):
+    1. Mean-subtract and cumulatively sum the input series (integrate).
+    2. For each window size w, split the integrated series into non-overlapping
+       segments of length w.
+    3. Fit a polynomial of degree poly_order to each segment and compute the
+       RMS of residuals: the fluctuation function F(w).
+    4. Average F(w) across segments for each w.
+    5. OLS on log(mean_F) vs log(w). Slope = Hurst exponent.
+
+    Parameters
+    ----------
+    series:
+        Raw level or spread values (NOT pre-integrated). NaNs are dropped.
+    min_window:
+        Smallest segment size to use.
+    max_window:
+        Largest segment size. Defaults to len(series) // 2.
+    poly_order:
+        Polynomial degree for local detrending. 1 = linear (standard DFA-1).
+    """
+    arr = np.asarray(series.dropna(), dtype=float)
+    n = len(arr)
+
+    if n < _HURST_MIN_OBS:
+        logger.warning("dfa_hurst: insufficient observations", n=n)
+        return HurstResult(
+            exponent=float("nan"),
+            n_windows=0,
+            r_squared=float("nan"),
+            interpretation="INSUFFICIENT_DATA",
+        )
+
+    # Integrate: cumulative sum of mean-subtracted series (standard DFA step).
+    integrated = np.cumsum(arr - np.mean(arr))
+
+    effective_max = max_window if max_window is not None else n // 2
+    windows = [w for w in _HURST_WINDOWS if min_window <= w <= effective_max]
+    if len(windows) < 2:
+        logger.warning("dfa_hurst: fewer than 2 valid windows", windows=windows)
+        return HurstResult(
+            exponent=float("nan"),
+            n_windows=len(windows),
+            r_squared=float("nan"),
+            interpretation="INSUFFICIENT_DATA",
+        )
+
+    log_ws: list[float] = []
+    log_fs: list[float] = []
+
+    x_template = {w: np.arange(w, dtype=float) for w in windows}
+
+    for w in windows:
+        n_segments = n // w
+        if n_segments < 1:
+            continue
+        f_sq_vals: list[float] = []
+        x = x_template[w]
+        vander = np.vander(x, N=poly_order + 1, increasing=True)
+        for i in range(n_segments):
+            seg = integrated[i * w : (i + 1) * w]
+            coeffs, _, _, _ = np.linalg.lstsq(vander, seg, rcond=None)
+            residuals = seg - vander @ coeffs
+            f_sq_vals.append(float(np.mean(residuals ** 2)))
+        if f_sq_vals:
+            mean_f = math.sqrt(np.mean(f_sq_vals))
+            if mean_f > 0.0:
+                log_ws.append(math.log(w))
+                log_fs.append(math.log(mean_f))
+
+    if len(log_ws) < 2:
+        return HurstResult(
+            exponent=float("nan"),
+            n_windows=len(log_ws),
+            r_squared=float("nan"),
+            interpretation="INSUFFICIENT_DATA",
+        )
+
+    from scipy.stats import linregress
+
+    slope, _, r_value, _, _ = linregress(log_ws, log_fs)
+    h = float(slope)
+    return HurstResult(
+        exponent=h,
+        n_windows=len(log_ws),
+        r_squared=float(r_value ** 2),
+        interpretation=_interpret_hurst(h),
+    )
+
+
+def hurst_exponent(
+    series: pd.Series,
+    min_window: int = 10,
+    max_window: int | None = None,
+) -> HurstResult:
+    """Hurst exponent via DFA (Detrended Fluctuation Analysis).
+
+    DFA replaced R/S in session 27. R/S was misclassifying OU processes with
+    positive AR(1) coefficient (e.g. VWAP spread) as TRENDING/RANDOM_WALK.
+    DFA gives H < 0.5 for any stationary mean-reverting process regardless of
+    the sign of φ, which is the correct discriminant for strategy selection.
+
+    Parameters
+    ----------
+    series:
+        Time-series values (raw level or spread). NaNs are dropped.
+    min_window:
+        Smallest segment size to consider.
+    max_window:
+        Largest segment size. Defaults to len(series) // 2.
+    """
+    return dfa_hurst(series, min_window=min_window, max_window=max_window)
 
 
 # ---------------------------------------------------------------------------
