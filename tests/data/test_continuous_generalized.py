@@ -45,8 +45,12 @@ def test_continuous_ts_root_derived_from_instrument_zn():
 
 
 def test_continuous_ts_root_derived_from_instrument_6e():
-    """6E Instrument produces TS root 'EU'."""
+    """6E Instrument produces TS root 'EC' (TradeStation uses EC, not EU or 6E).
+
+    Verified against TradeStation API 2026-04-25: @EU returns 'Invalid Symbol';
+    @EC and ECH24 return valid data. instruments_core.yaml corrected in session 28.
+    """
     ts_root = _6E.tradestation_symbol.lstrip("@")
-    assert ts_root == "EU"
+    assert ts_root == "EC"
     periods = contract_sequence(ts_root, date(2024, 1, 1), date(2024, 3, 31))
-    assert all(p.ts_symbol.startswith("EU") for p in periods)
+    assert all(p.ts_symbol.startswith("EC") for p in periods)

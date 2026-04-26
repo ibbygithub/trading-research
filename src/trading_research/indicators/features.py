@@ -212,6 +212,16 @@ def build_features(
     indicator_list = _indicator_list()
     htf_projection_list = _htf_projection_list()
 
+    # Compute featureset hash for provenance tracking (links backtest runs to
+    # the exact feature-set version that produced the parquet).
+    from trading_research.core.featuresets import FeatureSetRegistry
+    _name, _version = feature_set_tag.rsplit("-", 1)
+    try:
+        fs_registry = FeatureSetRegistry()
+        fs_hash = fs_registry.get(_name, _version).compute_hash()
+    except Exception:
+        fs_hash = "unknown"
+
     manifest = build_features_manifest(
         parquet_path=out_path,
         source_paths=[price_path, price_1m_path, daily_path],
@@ -219,6 +229,7 @@ def build_features(
         timeframe=tf_label,
         adjustment=adj_label,
         feature_set_tag=feature_set_tag,
+        featureset_hash=fs_hash,
         feature_set_config=feature_set_config,
         indicators=indicator_list,
         htf_projections=htf_projection_list,

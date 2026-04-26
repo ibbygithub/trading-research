@@ -30,7 +30,7 @@ def test_get_6e(registry: InstrumentRegistry) -> None:
     e = registry.get("6E")
     assert isinstance(e, Instrument)
     assert e.symbol == "6E"
-    assert e.tradestation_symbol == "@EU"
+    assert e.tradestation_symbol == "@EC"  # TS uses EC root, not EU (verified 2026-04-25)
     assert e.exchange == "CME"
     assert e.asset_class == "fx"
     assert e.tick_size == Decimal("0.00005")

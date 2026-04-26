@@ -37,7 +37,10 @@ instruments:
 
   6E:
     symbol: 6E
-    tradestation_symbol: "@EU"
+    tradestation_symbol: "@EC"
+    # NOTE: TradeStation uses EC (not EU) as the root for Euro FX futures.
+    # CME root is 6E; TS root is EC. Individual contracts: ECH24, ECM24, ECU24, ECZ24.
+    # Continuous contract: @EC. Verified against TS API 2026-04-25.
     name: "Euro FX"
     exchange: "CME"
     asset_class: "fx"
