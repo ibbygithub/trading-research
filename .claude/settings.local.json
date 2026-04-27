@@ -60,7 +60,10 @@
       "Bash(.venv/Scripts/pytest.exe --tb=no)",
       "Bash(xargs -I{} sh -c 'python3 -c \"import json; d=json.load\\(open\\(\\\\\"{}\\\\\"\\)\\)\" 2>/dev/null && echo \"{}\"')",
       "Bash(git checkout *)",
-      "Bash(awk '{print $2}')"
+      "Bash(awk '{print $2}')",
+      "Bash(.venv/Scripts/python.exe -m pytest --tb=short -q --no-header)",
+      "Bash(git push *)",
+      "Bash(git pull *)"
     ],
     "defaultMode": "acceptEdits"
   },
