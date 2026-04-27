@@ -1,18 +1,24 @@
 # Planning State — trading-research
-Last updated: 2026-04-14
+Last updated: 2026-04-25
 
 ## Project Summary
-A personal quant trading research lab building a full pipeline from raw futures data through honest backtesting and eventual live execution via TradeStation. Primary goal: grow $25k account to $35k then take regular draws — capital preservation with consistent income, not maximum return. Single-instrument ZN mean reversion is the first strategy; FX pairs (6A/6C/6N) add a second income stream once ZN is validated. Pipeline: RAW → CLEAN → FEATURES → visual cockpit → backtest engine (portfolio-aware) → strategy → paper → live.
+A personal quant trading research lab building a full pipeline from raw futures data through honest backtesting and eventual live execution via TradeStation. Primary goal: grow $25k account to $35k then take regular draws — capital preservation with consistent income, not maximum return. Pivoted from ZN to 6E (Euro FX) as primary instrument at session 23. Pipeline: RAW → CLEAN → FEATURES → visual cockpit → backtest engine (portfolio-aware) → strategy → paper → live.
 
 ## Active Work
 | Item | Description | Phase | Status | Last Updated |
 |------|-------------|-------|--------|--------------|
-| Session 06 | CLI automation: verify, rebuild clean/features, backfill-manifests, inventory | Ground floor | COMPLETE | 2026-04-14 |
-| Session 07 | Visual cockpit: Dash 4-pane MTF replay app | Floor 1 | Spec written, ready to execute | 2026-04-14 |
+| Track A (sessions 23–28) | Hardening sprint — Protocols, suite, BH, 6E pipeline | Done | COMPLETE | 2026-04-25 |
+| Execution tree at `docs/execution/` | Multi-model dispatch-ready specs for sessions 29–55 | Planning | Drafted, awaiting Ibby red-line | 2026-04-26 |
+| Phase 1 (sessions 29–38) | Hardening + paper-trading ready | Planning | Per-model specs ready | 2026-04-26 |
+| Phase 2 (sessions 39–55) | 30-day paper window → live small money | Planning | Per-session specs ready | 2026-04-26 |
 
 ## Open Decisions
-- None blocking sessions 06 or 07
-- Session 08 scope (backtest engine + portfolio risk) to be specced after session 07 delivers
+- **Plan-level commitments awaiting Ibby red-line.** See [`docs/execution/plan/master-execution-plan.md`](../../docs/execution/plan/master-execution-plan.md) "Plan-level commitments requiring Ibby red-line." Ten items.
+- **Track E option pick (sprint 34):** TradeStation SIM vs TradingView Pine port. Pre-committed escape rules apply.
+- **Track G/H decision (session 55):** ML, pairs, or stay simple. Open-ended.
+
+## Active execution state
+See [`docs/execution/handoffs/current-state.md`](../../docs/execution/handoffs/current-state.md). Next eligible: 29a (Opus 4.7).
 
 ## Technology Registry
 | Technology | Role in this project | Rationale | Date |
@@ -115,7 +121,34 @@ Annex (parallel / deferred):
 ## Planning Documents
 | Document | Path | Status |
 |----------|------|--------|
-| Session 06 plan | docs/session-plans/session-06-plan.md | Approved, ready to execute |
-| Session 07 plan | docs/session-plans/session-07-plan.md | Written, awaiting session 06 completion |
+| Session 06 plan | docs/session-plans/session-06-plan.md | Historical |
+| Session 07 plan | docs/session-plans/session-07-plan.md | Historical |
+| Roadmap sessions 23–50 | docs/roadmap/sessions-23-50.md | Active |
+| Sprints 29–38 plan v1 | outputs/planning/sprints-29-38-plan.md | Superseded |
+| Sprints 29–38 plan **v2** | outputs/planning/sprints-29-38-plan-v2.md | **Draft — awaiting Ibby red-line** |
+| Sprints 29–38 risks **v2** | outputs/planning/sprints-29-38-risks-v2.md | Active |
+| Peer review — Data Scientist | outputs/planning/peer-reviews/data-scientist-review.md | Active |
+| Peer review — Architect | outputs/planning/peer-reviews/architect-review.md | Active |
+| Peer review — Quant Mentor | outputs/planning/peer-reviews/quant-mentor-review.md | Active |
+| Peer-review synthesis | outputs/planning/peer-reviews/synthesis-and-required-changes.md | Active |
+| Multi-model handoff protocol | outputs/planning/multi-model-handoff-protocol.md | Policy — load-bearing |
+| Gemini validation playbook | outputs/planning/gemini-validation-playbook.md | Policy — load-bearing |
+| Session 29 spec | docs/roadmap/session-specs/session-29-strategy-foundation.md | Ready |
+| Session 30 spec | docs/roadmap/session-specs/session-30-6e-backtest-v1.md | Ready |
+| Session 31 spec | docs/roadmap/session-specs/session-31-regime-filter.md | Ready |
+| Session 32 spec | docs/roadmap/session-specs/session-32-mulligan.md | Ready |
+| Session 33 gate spec | docs/roadmap/session-specs/session-33-track-c-gate.md | Ready (pre-committed) |
+| Session 34 bridge spec | docs/roadmap/session-specs/session-34-bridge-pick.md | Ready (3-branch) |
+| Session 35 paper-loop spec | docs/roadmap/session-specs/session-35-paper-loop.md | Ready |
+| Session 36 first-paper-trade spec | docs/roadmap/session-specs/session-36-first-paper-trade.md | Ready |
+| Session 37 hardening spec | docs/roadmap/session-specs/session-37-hardening.md | Ready |
+| Session 38 trader's-desk spec | docs/roadmap/session-specs/session-38-traders-desk.md | Ready |
+| Session F1 (Gemini) | docs/roadmap/session-specs/session-F1-html-report-enhancements.md | Ready |
+| Session F2 (Gemini) | docs/roadmap/session-specs/session-F2-cli-template-subcommands.md | Ready |
+| Session F3 (Gemini) | docs/roadmap/session-specs/session-F3-trial-comparison-report.md | Ready |
+| Session B1 (Gemini, existing) | docs/roadmap/session-specs/session-B1-timeframe-catalog.md | Ready |
+| Track D circuit breakers (existing) | docs/roadmap/session-specs/track-D-circuit-breakers.md | Ready |
+| Track D v2 alignment | docs/roadmap/session-specs/track-D-alignment-with-plan-v2.md | Ready |
+| 6E strategy class recommendation | docs/analysis/6e-strategy-class-recommendation.md | Active |
 | Pipeline reference | docs/pipeline.md | Active |
 | Data architecture decision record | docs/architecture/data-layering.md | Active |

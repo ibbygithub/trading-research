@@ -23,6 +23,7 @@ dependencies = [
     "lightgbm>=4.3",
     "hdbscan>=0.8.33",
     "umap-learn>=0.5",
+    "statsmodels>=0.14.6",
 ]
 
 [project.scripts]
@@ -55,3 +56,8 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "B", "UP", "SIM", "RET"]
 ignore = ["E501"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

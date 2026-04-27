@@ -41,6 +41,49 @@ class TestTradeDate:
         trade_dates = trade_date_from_ny(ts_ny)
         assert trade_dates.iloc[0] == date(2024, 1, 8)
 
+    def test_dst_spring_forward_session_open(self):
+        """18:00 EDT on DST spring-forward Sunday (2024-03-10) → trade_date = Monday.
+
+        On 2024-03-10, US clocks spring forward 2am→3am. The ZN session that
+        opens at 18:00 EDT (= 22:00 UTC) should still land on Monday 2024-03-11.
+        The +6h offset on a tz-aware timestamp is unaffected by the DST change
+        because pandas/pytz applies arithmetic in UTC.
+        """
+        ts_utc = pd.Series(
+            pd.to_datetime(["2024-03-10 22:00:00"]).tz_localize("UTC")
+        )
+        ts_ny = ts_utc.dt.tz_convert("America/New_York")
+        trade_dates = trade_date_from_ny(ts_ny)
+        assert trade_dates.iloc[0] == date(2024, 3, 11)  # Monday
+
+    def test_dst_fall_back_session_open(self):
+        """18:00 EST on DST fall-back Sunday (2024-11-03) → trade_date = Monday.
+
+        On 2024-11-03, US clocks fall back 2am→1am. The ZN session opening
+        at 18:00 EST (= 23:00 UTC) should land on Monday 2024-11-04.
+        """
+        ts_utc = pd.Series(
+            pd.to_datetime(["2024-11-03 23:00:00"]).tz_localize("UTC")
+        )
+        ts_ny = ts_utc.dt.tz_convert("America/New_York")
+        trade_dates = trade_date_from_ny(ts_ny)
+        assert trade_dates.iloc[0] == date(2024, 11, 4)  # Monday
+
+    def test_dst_fall_back_repeated_hour_consistent(self):
+        """Both 01:00 occurrences on fall-back Sunday → same trade_date (Sunday).
+
+        During the fall-back on 2024-11-03, the 01:00 hour repeats.
+        05:00 UTC = 01:00 EDT (before fall-back); 06:00 UTC = 01:00 EST (after).
+        Both are within the Saturday→Sunday CME session and must share trade_date.
+        """
+        ts_utc = pd.Series(
+            pd.to_datetime(["2024-11-03 05:00:00", "2024-11-03 06:00:00"]).tz_localize("UTC")
+        )
+        ts_ny = ts_utc.dt.tz_convert("America/New_York")
+        trade_dates = trade_date_from_ny(ts_ny)
+        assert trade_dates.iloc[0] == trade_dates.iloc[1]
+        assert trade_dates.iloc[0] == date(2024, 11, 3)  # Sunday
+
 
 class TestHTFBiasLookAhead:
     """Verify that daily indicators are shifted by one session before projection.

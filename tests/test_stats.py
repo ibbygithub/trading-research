@@ -1,6 +1,8 @@
+import math
 import numpy as np
 import pandas as pd
 import pytest
+import scipy.stats as scipy_stats
 from trading_research.eval.stats import (
     bootstrap_metric, deflated_sharpe_ratio, probabilistic_sharpe_ratio,
     mar_ratio, ulcer_index, ulcer_performance_index, recovery_factor,
@@ -15,12 +17,23 @@ def test_bootstrap_metric():
     assert lo <= point <= hi
 
 def test_probabilistic_sharpe_ratio():
-    psr = probabilistic_sharpe_ratio(1.0, 100, 0.0, 3.0)
+    psr = probabilistic_sharpe_ratio(1.0, 100, 0.0, kurtosis_pearson=3.0)
     assert 0.0 <= psr <= 1.0
 
+
+def test_psr_rejects_excess_kurtosis():
+    # Passing Fisher/excess kurtosis (normal=0) must raise, not silently corrupt.
+    with pytest.raises(ValueError, match="kurtosis_pearson"):
+        probabilistic_sharpe_ratio(1.0, 100, 0.0, kurtosis_pearson=0.0)
+
+
 def test_deflated_sharpe_ratio():
-    returns = np.random.normal(0.1, 1.0, 1000)
-    dsr = deflated_sharpe_ratio(returns, 10)
+    rng = np.random.default_rng(42)
+    returns = rng.normal(0.1, 1.0, 1000)
+    sharpe = float(np.mean(returns) / np.std(returns, ddof=1))
+    skewness = float(scipy_stats.skew(returns))
+    kurtosis_p = float(scipy_stats.kurtosis(returns, fisher=False))
+    dsr = deflated_sharpe_ratio(sharpe, len(returns), 10, skewness, kurtosis_p)
     assert 0.0 <= dsr <= 1.0
 
 def test_ratios():

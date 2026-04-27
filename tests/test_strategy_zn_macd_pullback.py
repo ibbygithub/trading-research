@@ -313,6 +313,119 @@ class TestNaNGuards:
 # Output schema
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Event-day blackout filter tests
+# ---------------------------------------------------------------------------
+
+
+class TestEventBlackout:
+    """Test that blackout_calendars suppresses entries on event days.
+
+    Uses real FOMC dates from configs/calendars/fomc_dates.yaml.
+    2024-01-31 is a known FOMC date; the test index starts at 14:00 UTC
+    which is 9:00 AM ET — within the RTH session.
+
+    Exit signals (NaN stop) must survive the blackout filter unchanged.
+    """
+
+    def _utc_index_on_fomc(self, n: int) -> pd.DatetimeIndex:
+        # 2024-01-31 is an FOMC date; 14:00 UTC = 09:00 ET
+        return pd.date_range("2024-01-31 14:00:00", periods=n, freq="5min", tz="UTC")
+
+    def _make_fomc_df(self, n: int, macd_hist: float, streak: int,
+                     daily_hist: float, atr: float = 0.25,
+                     close: float = 110.0) -> pd.DataFrame:
+        idx = self._utc_index_on_fomc(n)
+        return pd.DataFrame(
+            {
+                "close":                    [close] * n,
+                "macd_hist":                [macd_hist] * n,
+                "macd_hist_decline_streak": pd.array([streak] * n, dtype="Int64"),
+                "daily_macd_hist":          [daily_hist] * n,
+                "atr_14":                   [atr] * n,
+                "vwap_session":             [110.0] * n,
+            },
+            index=idx,
+        )
+
+    def _run_with_blackout(self, df: pd.DataFrame, htf_hist: float,
+                           htf_slope: float, **kwargs) -> pd.DataFrame:
+        mock_htf = _fake_60m(df, htf_hist, htf_slope)
+        with patch(
+            "trading_research.strategies.zn_macd_pullback._load_60m_macd",
+            return_value=mock_htf,
+        ):
+            return generate_signals(df, **kwargs)
+
+    def test_fomc_day_suppresses_long_entry(self) -> None:
+        df = self._make_fomc_df(5, macd_hist=-0.05, streak=-3, daily_hist=0.02)
+        sigs = self._run_with_blackout(
+            df, htf_hist=0.01, htf_slope=0.001,
+            blackout_calendars=["fomc"],
+        )
+        # All bars are on an FOMC day — entries must be suppressed
+        assert (sigs["signal"] == 0).all()
+        assert sigs["stop"].isna().all()
+
+    def test_fomc_day_suppresses_short_entry(self) -> None:
+        df = self._make_fomc_df(5, macd_hist=0.05, streak=-3, daily_hist=-0.02)
+        sigs = self._run_with_blackout(
+            df, htf_hist=-0.01, htf_slope=0.001,
+            blackout_calendars=["fomc"],
+        )
+        assert (sigs["signal"] == 0).all()
+        assert sigs["stop"].isna().all()
+
+    def test_fomc_day_preserves_exit_signal(self) -> None:
+        # long exit: daily > 0, macd_hist >= 0 — stop is NaN (exit-only bar)
+        # Blackout must NOT suppress exit signals so open positions can close.
+        df = self._make_fomc_df(5, macd_hist=0.02, streak=1, daily_hist=0.02)
+        sigs = self._run_with_blackout(
+            df, htf_hist=0.01, htf_slope=0.001,
+            blackout_calendars=["fomc"],
+        )
+        # Exit signal (signal=-1, stop=NaN) must survive
+        assert (sigs["signal"] == -1).all()
+        assert sigs["stop"].isna().all()
+
+    def test_no_blackout_gives_normal_signal(self) -> None:
+        # Same FOMC day data but blackout_calendars=None — should fire normally
+        df = self._make_fomc_df(5, macd_hist=-0.05, streak=-3, daily_hist=0.02)
+        sigs = self._run_with_blackout(
+            df, htf_hist=0.01, htf_slope=0.001,
+            blackout_calendars=None,
+        )
+        assert (sigs["signal"] == 1).all()
+        assert sigs["stop"].notna().all()
+
+    def test_non_event_day_not_affected_by_blackout(self) -> None:
+        # 2024-01-10 is not an FOMC, CPI, or NFP date
+        idx = pd.date_range("2024-01-10 14:00:00", periods=5, freq="5min", tz="UTC")
+        df = pd.DataFrame(
+            {
+                "close":                    [110.0] * 5,
+                "macd_hist":                [-0.05] * 5,
+                "macd_hist_decline_streak": pd.array([-3] * 5, dtype="Int64"),
+                "daily_macd_hist":          [0.02] * 5,
+                "atr_14":                   [0.25] * 5,
+                "vwap_session":             [110.0] * 5,
+            },
+            index=idx,
+        )
+        mock_htf = _fake_60m(df, 0.01, 0.001)
+        with patch(
+            "trading_research.strategies.zn_macd_pullback._load_60m_macd",
+            return_value=mock_htf,
+        ):
+            sigs = generate_signals(
+                df,
+                blackout_calendars=["fomc", "cpi", "nfp"],
+            )
+        # Entry should fire normally — 2024-01-10 is not an event day
+        assert (sigs["signal"] == 1).all()
+        assert sigs["stop"].notna().all()
+
+
 class TestOutputSchema:
     def test_returns_correct_columns(self):
         df = _make_df(5, macd_hist=-0.05, streak=-3, daily_hist=0.02)

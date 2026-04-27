@@ -1,41 +1,297 @@
-import json
-from pathlib import Path
-from datetime import datetime, timezone
-import hashlib
-from typing import Optional
+"""Trial registry — per-run tracking with cohort versioning for honest DSR.
 
-def get_trials_file(runs_root: Path) -> Path:
+Registry format (JSON):
+    {
+        "trials": [ <Trial dict>, ... ]
+    }
+
+Each Trial carries a ``code_version`` (git short SHA at time of record) and a
+``cohort_label`` (defaults to code_version) so that Deflated Sharpe Ratio is
+only computed within trials produced by the same engine version.
+
+Cross-cohort DSR is intentionally disabled: comparing DSR across engine
+versions is apples-to-oranges because the underlying backtest procedure
+changed.  Callers that need cross-cohort data should group by cohort first.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import subprocess
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+
+import structlog
+
+from trading_research.eval.stats import deflated_sharpe_ratio
+
+logger = structlog.get_logger(__name__)
+
+MIN_TRIALS_FOR_DSR = 2
+
+# Assumed defaults when per-trial statistical moments are missing.
+# These assume normal returns with one year of daily observations.
+_DEFAULT_N_OBS = 252
+_DEFAULT_SKEWNESS = 0.0
+_DEFAULT_KURTOSIS_PEARSON = 3.0  # Pearson kurtosis, normal distribution
+
+
+@dataclass
+class Trial:
+    """A single recorded backtest trial."""
+
+    timestamp: str
+    strategy_id: str
+    config_hash: str
+    sharpe: float
+    trial_group: str
+    code_version: str
+    featureset_hash: str | None
+    cohort_label: str
+    # Statistical moments — populated by record_trial when available.
+    # When None, compute_dsr() falls back to conservative defaults.
+    n_obs: int | None = None
+    skewness: float | None = None
+    kurtosis_pearson: float | None = None
+
+
+def _get_code_version() -> str:
+    """Return the current git short SHA, or 'unknown' if git is unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _registry_path(runs_root: Path) -> Path:
     return runs_root / ".trials.json"
 
-def record_trial(runs_root: Path, strategy_id: str, config_path: Path, sharpe: float, trial_group: Optional[str] = None) -> None:
-    tf = get_trials_file(runs_root)
-    trials = []
-    if tf.exists():
-        with open(tf, "r") as f:
-            try: trials = json.load(f)
-            except Exception: pass
-            
+
+def _load_raw(path: Path) -> list[dict]:
+    """Read the JSON registry and return the trials list.
+
+    Handles both the legacy flat-list format and the current dict format.
+    """
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        return data.get("trials", [])
+    return []
+
+
+def _write_registry(path: Path, trials: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"trials": trials}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def _dict_to_trial(d: dict) -> Trial:
+    return Trial(
+        timestamp=d.get("timestamp", ""),
+        strategy_id=d.get("strategy_id", ""),
+        config_hash=d.get("config_hash", ""),
+        sharpe=float(d.get("sharpe", math.nan)),
+        trial_group=d.get("trial_group", d.get("strategy_id", "")),
+        code_version=d.get("code_version", "unknown"),
+        featureset_hash=d.get("featureset_hash"),
+        cohort_label=d.get("cohort_label", d.get("code_version", "unknown")),
+        n_obs=d.get("n_obs"),
+        skewness=d.get("skewness"),
+        kurtosis_pearson=d.get("kurtosis_pearson"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def get_trials_file(runs_root: Path) -> Path:
+    return _registry_path(runs_root)
+
+
+def load_trials(path: Path | None = None) -> list[Trial]:
+    """Load all trials from the registry.
+
+    Args:
+        path: Path to the .trials.json file.  Defaults to ``runs/.trials.json``
+              relative to the project root (two levels above this file's
+              ``src/`` directory).
+    """
+    if path is None:
+        path = Path(__file__).resolve().parents[3] / "runs" / ".trials.json"
+    raw = _load_raw(path)
+    return [_dict_to_trial(d) for d in raw]
+
+
+def record_trial(
+    runs_root: Path,
+    strategy_id: str,
+    config_path: Path,
+    sharpe: float,
+    trial_group: str | None = None,
+    featureset_hash: str | None = None,
+    cohort_label: str | None = None,
+    n_obs: int | None = None,
+    skewness: float | None = None,
+    kurtosis_pearson: float | None = None,
+) -> None:
+    """Append a trial entry to the registry.
+
+    New entries always carry the current git SHA as ``code_version`` and
+    default ``cohort_label`` to that SHA.
+    """
+    tf = _registry_path(runs_root)
+    raw = _load_raw(tf)
+
     config_hash = ""
     if config_path.exists():
         config_hash = hashlib.md5(config_path.read_bytes()).hexdigest()
-        
-    trials.append({
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+
+    code_version = _get_code_version()
+    entry: dict = {
+        "timestamp": datetime.now(UTC).isoformat(),
         "strategy_id": strategy_id,
         "config_hash": config_hash,
-        "sharpe": float(sharpe) if sharpe is not None else float("nan"),
-        "trial_group": trial_group or strategy_id
-    })
-    
-    tf.parent.mkdir(parents=True, exist_ok=True)
-    with open(tf, "w") as f:
-        json.dump(trials, f, indent=2)
+        "sharpe": float(sharpe) if sharpe is not None else math.nan,
+        "trial_group": trial_group or strategy_id,
+        "code_version": code_version,
+        "featureset_hash": featureset_hash,
+        "cohort_label": cohort_label or code_version,
+    }
+    if n_obs is not None:
+        entry["n_obs"] = n_obs
+    if skewness is not None:
+        entry["skewness"] = skewness
+    if kurtosis_pearson is not None:
+        entry["kurtosis_pearson"] = kurtosis_pearson
+
+    raw.append(entry)
+    _write_registry(tf, raw)
+
 
 def count_trials(runs_root: Path, strategy_id: str) -> int:
-    tf = get_trials_file(runs_root)
-    if not tf.exists(): return 1
-    try:
-        with open(tf, "r") as f: trials = json.load(f)
-        cnt = sum(1 for t in trials if t.get("strategy_id") == strategy_id or t.get("trial_group") == strategy_id)
-        return cnt if cnt > 0 else 1
-    except Exception: return 1
+    """Return the number of trials for a strategy_id or trial_group."""
+    tf = _registry_path(runs_root)
+    raw = _load_raw(tf)
+    cnt = sum(
+        1
+        for t in raw
+        if t.get("strategy_id") == strategy_id or t.get("trial_group") == strategy_id
+    )
+    return cnt if cnt > 0 else 1
+
+
+def migrate_trials(path: Path, backup: bool = True) -> None:
+    """Migrate existing registry entries to the versioned schema.
+
+    Specifically:
+    - Converts the legacy flat-list format to ``{"trials": [...]}``.
+    - Tags every entry that lacks ``code_version`` with ``"pre-hardening"``.
+    - Tags every entry that lacks ``cohort_label`` with ``"pre-hardening"``.
+    - Sets ``featureset_hash`` to None for entries that lack it.
+
+    Idempotent: running twice produces the same output.
+    """
+    if not path.exists():
+        logger.warning("migrate_trials: registry not found, nothing to migrate", path=str(path))
+        return
+
+    original_text = path.read_text(encoding="utf-8")
+
+    if backup:
+        backup_path = path.with_suffix(".json.backup")
+        backup_path.write_text(original_text, encoding="utf-8")
+        logger.info("migrate_trials: backup written", backup=str(backup_path))
+
+    raw = _load_raw(path)
+    for trial in raw:
+        trial.setdefault("code_version", "pre-hardening")
+        trial.setdefault("cohort_label", "pre-hardening")
+        trial.setdefault("featureset_hash", None)
+
+    _write_registry(path, raw)
+    logger.info("migrate_trials: complete", n_trials=len(raw), path=str(path))
+
+
+def compute_dsr(
+    trials: list[Trial],
+    cohort: str | None = None,
+) -> float | None:
+    """Compute Deflated Sharpe Ratio for a single cohort.
+
+    Cross-cohort DSR is disabled.  Callers must supply a ``cohort`` label.
+    If ``cohort`` is None, returns None and logs a warning.
+
+    If the cohort has fewer than MIN_TRIALS_FOR_DSR entries, returns None.
+
+    Statistical moments (n_obs, skewness, kurtosis_pearson) that are missing
+    from trial entries fall back to conservative defaults: n_obs=252,
+    skewness=0, kurtosis_pearson=3 (normal distribution).  A warning is
+    logged when defaults are used so callers know the result is approximate.
+    """
+    if cohort is None:
+        logger.warning(
+            "compute_dsr called without cohort label; use per-cohort DSR. Returning None."
+        )
+        return None
+
+    filtered = [t for t in trials if t.cohort_label == cohort]
+    if len(filtered) < MIN_TRIALS_FOR_DSR:
+        logger.warning(
+            "compute_dsr: insufficient trials in cohort",
+            cohort=cohort,
+            n=len(filtered),
+            minimum=MIN_TRIALS_FOR_DSR,
+        )
+        return None
+
+    # Select the best (highest) sharpe as the candidate.
+    finite_trials = [t for t in filtered if not math.isnan(t.sharpe)]
+    if not finite_trials:
+        logger.warning("compute_dsr: all sharpe values are NaN in cohort", cohort=cohort)
+        return None
+
+    best = max(finite_trials, key=lambda t: t.sharpe)
+
+    n_obs = best.n_obs if best.n_obs is not None else _DEFAULT_N_OBS
+    skewness = best.skewness if best.skewness is not None else _DEFAULT_SKEWNESS
+    kurtosis_pearson = (
+        best.kurtosis_pearson
+        if best.kurtosis_pearson is not None
+        else _DEFAULT_KURTOSIS_PEARSON
+    )
+
+    if best.n_obs is None or best.skewness is None or best.kurtosis_pearson is None:
+        logger.warning(
+            "compute_dsr: using default statistical moments for cohort; "
+            "populate n_obs/skewness/kurtosis_pearson in record_trial for accurate DSR",
+            cohort=cohort,
+        )
+
+    return deflated_sharpe_ratio(
+        sharpe=best.sharpe,
+        n_obs=n_obs,
+        n_trials=len(filtered),
+        skewness=skewness,
+        kurtosis_pearson=kurtosis_pearson,
+    )

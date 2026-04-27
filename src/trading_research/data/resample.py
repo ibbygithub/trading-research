@@ -277,7 +277,7 @@ def resample_and_write(
     freqs:
         List of pandas offset alias strings (e.g. ``["5min", "15min"]``).
     symbol:
-        Base symbol name for output file naming (e.g. ``"ZN"``).
+        Base symbol name for output file naming (e.g. ``"6E"``).
 
     Returns
     -------

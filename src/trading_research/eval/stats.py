@@ -17,18 +17,61 @@ def bootstrap_metric(values, stat_fn, n_iter=10_000, ci=0.95):
     alpha = 1.0 - ci
     return point, float(np.percentile(finite, alpha/2*100)), float(np.percentile(finite, (1-alpha/2)*100))
 
-def probabilistic_sharpe_ratio(sharpe: float, n_obs: int, skewness: float, kurtosis: float, sr_benchmark: float = 0.0) -> float:
-    if n_obs < 3 or math.isnan(sharpe) or math.isnan(skewness) or math.isnan(kurtosis): return float('nan')
-    var = (1 - skewness * sharpe + ((kurtosis - 1) / 4) * sharpe**2) / (n_obs - 1)
-    if var <= 0: return float('nan')
+def probabilistic_sharpe_ratio(
+    sharpe: float,
+    n_obs: int,
+    skewness: float,
+    kurtosis_pearson: float,
+    sr_benchmark: float = 0.0,
+) -> float:
+    """Probability that a strategy's true SR exceeds sr_benchmark.
+
+    Formula from Bailey & Lopez de Prado (2012), "The Sharpe Ratio Efficient
+    Frontier", Journal of Risk, 15(2).
+
+    kurtosis_pearson must be Pearson kurtosis (normal distribution = 3.0), NOT
+    Fisher/excess kurtosis (normal = 0.0).  Pass scipy.stats.kurtosis(...,
+    fisher=False) or add 3 to a Fisher result.  Values below 1.0 are
+    impossible for real distributions and indicate the wrong convention was
+    used.
+    """
+    if not math.isnan(kurtosis_pearson) and kurtosis_pearson < 1.0:
+        raise ValueError(
+            f"kurtosis_pearson={kurtosis_pearson:.4f} is below 1.0, which is "
+            "impossible for any real distribution.  You likely passed Fisher/"
+            "excess kurtosis (scipy default, normal=0).  Use "
+            "scipy.stats.kurtosis(fisher=False) to get Pearson kurtosis "
+            "(normal=3), as required by Bailey & Lopez de Prado 2012."
+        )
+    if n_obs < 3 or math.isnan(sharpe) or math.isnan(skewness) or math.isnan(kurtosis_pearson):
+        return float('nan')
+    var = (1 - skewness * sharpe + ((kurtosis_pearson - 1) / 4) * sharpe**2) / (n_obs - 1)
+    if var <= 0:
+        return float('nan')
     return float(st.norm.cdf((sharpe - sr_benchmark) / math.sqrt(var)))
 
-def deflated_sharpe_ratio(sharpe: float, n_obs: int, n_trials: int, skewness: float, kurtosis: float) -> float:
-    if n_trials < 1: n_trials = 1
+
+def deflated_sharpe_ratio(
+    sharpe: float,
+    n_obs: int,
+    n_trials: int,
+    skewness: float,
+    kurtosis_pearson: float,
+) -> float:
+    """DSR: PSR evaluated at the expected maximum SR benchmark across n_trials.
+
+    kurtosis_pearson must be Pearson kurtosis (normal=3.0).  See
+    probabilistic_sharpe_ratio docstring for the correct scipy call.
+    Bailey & Lopez de Prado (2012).
+    """
+    if n_trials < 1:
+        n_trials = 1
     emc = 0.5772156649
-    if n_trials == 1: sr_bench = 0.0
-    else: sr_bench = (1 - emc) * st.norm.ppf(1 - 1.0/n_trials) + emc * st.norm.ppf(1 - 1.0/(n_trials*math.e))
-    return probabilistic_sharpe_ratio(sharpe, n_obs, skewness, kurtosis, sr_bench)
+    if n_trials == 1:
+        sr_bench = 0.0
+    else:
+        sr_bench = (1 - emc) * st.norm.ppf(1 - 1.0/n_trials) + emc * st.norm.ppf(1 - 1.0/(n_trials*math.e))
+    return probabilistic_sharpe_ratio(sharpe, n_obs, skewness, kurtosis_pearson, sr_bench)
 
 def _get_drawdowns(equity_series: pd.Series) -> pd.Series:
     return equity_series.cummax() - equity_series

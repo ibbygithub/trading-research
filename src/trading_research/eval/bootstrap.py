@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from trading_research.utils import stats as _stats
+
 if TYPE_CHECKING:
     from trading_research.backtest.engine import BacktestResult
 
@@ -166,57 +168,27 @@ def format_with_ci(
 
 
 # ---------------------------------------------------------------------------
-# Fast metric implementations for bootstrap inner loop
-# (avoiding full compute_summary overhead per sample)
+# Thin wrappers that delegate to utils/stats (single source of truth).
 # ---------------------------------------------------------------------------
 
 _TRADING_DAYS = 252
 
 
 def _win_rate(pnl: np.ndarray) -> float:
-    if len(pnl) == 0:
-        return float("nan")
-    return float(np.sum(pnl > 0) / len(pnl))
+    return _stats.win_rate(pnl)
 
 
 def _profit_factor(pnl: np.ndarray) -> float:
-    gross_wins = float(np.sum(pnl[pnl > 0])) if np.any(pnl > 0) else 0.0
-    gross_losses = abs(float(np.sum(pnl[pnl <= 0]))) if np.any(pnl <= 0) else 0.0
-    return gross_wins / gross_losses if gross_losses > 0 else float("inf")
+    return _stats.profit_factor(pnl)
 
 
 def _sharpe(pnl: np.ndarray) -> float:
-    if len(pnl) < 2:
-        return float("nan")
-    # Treat each trade as a daily observation (conservative).
-    mu = np.mean(pnl)
-    sigma = np.std(pnl, ddof=1)
-    if sigma == 0:
-        return float("nan")
-    return float(mu / sigma * math.sqrt(_TRADING_DAYS))
+    return _stats.annualised_sharpe(pnl, trading_days=_TRADING_DAYS)
 
 
 def _sortino(pnl: np.ndarray) -> float:
-    if len(pnl) < 2:
-        return float("nan")
-    mu = np.mean(pnl)
-    downside = pnl[pnl < 0]
-    if len(downside) < 2:
-        return float("nan")
-    dd = np.std(downside, ddof=1)
-    if dd == 0:
-        return float("nan")
-    return float(mu / dd * math.sqrt(_TRADING_DAYS))
+    return _stats.annualised_sortino(pnl, trading_days=_TRADING_DAYS)
 
 
 def _calmar(pnl: np.ndarray, span_days: int) -> float:
-    if len(pnl) == 0 or span_days <= 0:
-        return float("nan")
-    equity = np.cumsum(pnl)
-    running_max = np.maximum.accumulate(equity)
-    drawdown = equity - running_max
-    max_dd = float(np.min(drawdown))
-    if max_dd == 0:
-        return float("nan")
-    annual_return = float(np.sum(pnl)) / span_days * _TRADING_DAYS
-    return annual_return / abs(max_dd)
+    return _stats.calmar(pnl, span_days, trading_days=_TRADING_DAYS)

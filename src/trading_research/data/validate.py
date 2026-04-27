@@ -6,11 +6,13 @@ is written as a ``.quality.json`` file next to the parquet.
 
 Usage::
 
+    from trading_research.core import InstrumentRegistry
     from trading_research.data.validate import validate_bar_dataset
 
+    registry = InstrumentRegistry()
     report = validate_bar_dataset(
-        parquet_path=Path("data/raw/ZN_1m_2024-01-01_2024-01-31.parquet"),
-        symbol="ZN",
+        parquet_path=Path("data/raw/6E_1m_2024-01-01_2024-01-31.parquet"),
+        instrument=registry.get("6E"),
         start_date=date(2024, 1, 1),
         end_date=date(2024, 1, 31),
     )
@@ -64,7 +66,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
-from datetime import UTC, date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -72,7 +74,7 @@ import pandas as pd
 import pandas_market_calendars as mcal
 import pyarrow.parquet as pq
 
-from trading_research.data.instruments import default_registry
+from trading_research.core.instruments import Instrument
 from trading_research.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -80,16 +82,15 @@ logger = get_logger(__name__)
 # Gap thresholds differ by session:
 # - RTH: any gap > 5 consecutive bars is structural. Real market hours; even a
 #   6-minute gap is suspicious.
-# - Off-hours / overnight: the market trades thinly 17:00–08:20 ET. Runs of
+# - Off-hours / overnight: the market trades thinly outside RTH. Runs of
 #   6-60 missing bars are common zero-activity periods and not data errors.
 #   Only gaps > 60 bars (1 hour) in the overnight session are structural.
 _LARGE_GAP_BARS_RTH = 5        # > 5 bars in RTH → structural
 _LARGE_GAP_BARS_OVERNIGHT = 60 # > 60 bars off-hours → structural; 6-60 = overnight_minor
 _LARGE_GAP_BARS = _LARGE_GAP_BARS_RTH  # kept for backwards-compat in tests
 
-# RTH window for ZN-like products, in ET. Gaps starting in RTH are flagged.
-_RTH_OPEN_ET = pd.Timedelta(hours=8, minutes=20)   # 08:20 ET
-_RTH_CLOSE_ET = pd.Timedelta(hours=15, minutes=0)  # 15:00 ET
+# RTH window is per-instrument and is read from InstrumentRegistry at validation time.
+# ZN: 08:20–15:00 ET; 6A/6C/6N: 08:00–17:00 ET.
 
 # CME daily maintenance halt: 16:00–17:00 CT. TradeStation does not reliably
 # return bars for the first 30 minutes after the session reopens at 17:00 CT.
@@ -112,19 +113,29 @@ def _pmcal_version() -> str:
         return "pandas-market-calendars==unknown"
 
 
-def _get_calendar_name(symbol: str) -> str:
-    """Look up the pandas-market-calendars name for a symbol."""
-    reg = default_registry()
-    try:
-        spec = reg.get(symbol)
-        if spec.data.calendar:
-            return spec.data.calendar
-    except KeyError:
-        pass
-    raise ValueError(
-        f"No calendar configured for symbol {symbol!r}. "
-        "Add 'calendar' under the 'data' key in configs/instruments.yaml."
-    )
+def last_trading_day(
+    instrument: Instrument, reference_date: date | None = None
+) -> date:
+    """Return the last calendar-recognized trading day at or before reference_date.
+
+    Parameters
+    ----------
+    instrument:
+        Instrument whose calendar to use.
+    reference_date:
+        Date ceiling; defaults to today (UTC).
+    """
+    ref = reference_date or datetime.now(UTC).date()
+    cal = mcal.get_calendar(instrument.calendar_name)
+    # Look back up to 10 calendar days to find the most recent valid session.
+    window_start = ref - pd.Timedelta(days=10)
+    schedule = cal.schedule(window_start.isoformat(), ref.isoformat())
+    if schedule.empty:
+        raise ValueError(
+            f"No trading sessions found for {instrument.symbol} "
+            f"in the 10 days before {ref}."
+        )
+    return schedule.index[-1].date()
 
 
 def _consecutive_runs(sorted_series: list[pd.Timestamp]) -> list[list[pd.Timestamp]]:
@@ -220,11 +231,10 @@ def _juneteenth_sessions_to_remove(
 
 def validate_bar_dataset(
     parquet_path: Path,
-    symbol: str,
+    instrument: Instrument,
     start_date: date,
     end_date: date,
     *,
-    calendar_name: str | None = None,
     write_report: bool = True,
 ) -> dict[str, Any]:
     """Validate a 1-minute bar parquet against the exchange trading calendar.
@@ -233,15 +243,11 @@ def validate_bar_dataset(
     ----------
     parquet_path:
         Path to the parquet file (in data/raw/ or data/clean/).
-    symbol:
-        Root symbol (e.g. ``"ZN"``). Used to look up the calendar if
-        ``calendar_name`` is not explicitly provided.
+    instrument:
+        Instrument whose calendar and RTH window define the validation rules.
     start_date, end_date:
         Date range to validate against the calendar. Should match the
         date range of the download.
-    calendar_name:
-        pandas-market-calendars calendar name. If omitted, looked up from
-        the instrument registry via ``symbol``.
     write_report:
         If True (default), write the report as ``{parquet_path.stem}.quality.json``
         next to the parquet. The caller can pass False to suppress this for
@@ -258,7 +264,19 @@ def validate_bar_dataset(
     if not parquet_path.exists():
         raise FileNotFoundError(f"Parquet not found: {parquet_path}")
 
-    cal_name = calendar_name or _get_calendar_name(symbol)
+    symbol = instrument.symbol
+    cal_name = instrument.calendar_name
+
+    # RTH window read directly from the Instrument — no registry lookup needed.
+    rth_open_et = pd.Timedelta(
+        hours=instrument.rth_open_et.hour,
+        minutes=instrument.rth_open_et.minute,
+    )
+    rth_close_et = pd.Timedelta(
+        hours=instrument.rth_close_et.hour,
+        minutes=instrument.rth_close_et.minute,
+    )
+
     logger.info(
         "validate_start",
         symbol=symbol,
@@ -355,7 +373,7 @@ def validate_bar_dataset(
             hours=run_start_ny.hour,
             minutes=run_start_ny.minute,
         )
-        in_rth = bool(_RTH_OPEN_ET <= time_of_day_et <= _RTH_CLOSE_ET)
+        in_rth = bool(rth_open_et <= time_of_day_et <= rth_close_et)
         gap_info["in_rth"] = in_rth
 
         # Select the applicable large-gap threshold.

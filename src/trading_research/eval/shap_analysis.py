@@ -1,12 +1,18 @@
 """SHAP analysis for trade attribution.
 
-Computes SHAP values per trade and attaches the top positive and 
+Computes SHAP values per trade and attaches the top positive and
 negative contributing features to the trade log.
+
+Note: ``shap`` is imported lazily inside the function body rather than at
+module level.  The shap library's dependency on numba/llvmlite can trigger
+a fatal JIT access violation on Windows with certain package combinations.
+Deferring the import means the rest of the codebase can safely import this
+module even when the shap environment is broken; ``compute_shap_per_trade``
+will surface the error only when it is actually called.
 """
 
 import numpy as np
 import pandas as pd
-import shap
 
 
 def compute_shap_per_trade(model, X: pd.DataFrame) -> pd.DataFrame:
@@ -14,9 +20,11 @@ def compute_shap_per_trade(model, X: pd.DataFrame) -> pd.DataFrame:
     
     Returns a DataFrame with the same index as X, containing new SHAP columns.
     """
+    import shap  # lazy import — see module docstring
+
     if len(X) == 0:
         return pd.DataFrame()
-        
+
     # Check if LightGBM classifier
     if hasattr(model, "booster_"):
         explainer = shap.TreeExplainer(model.booster_)

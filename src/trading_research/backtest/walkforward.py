@@ -72,18 +72,50 @@ def run_walkforward(
     sf = SignalFrame(signals_df)
     sf.validate()
     
-    # 4. Split and run folds
-    fold_size = len(bars) // n_folds
+    # 4. Split and run folds.
+    #
+    # Layout:
+    #   [fold_0_test][gap_bars][embargo_bars][fold_1_test][gap_bars][embargo_bars]...
+    #
+    # gap_bars:    hard buffer between adjacent test folds; these bars are
+    #              excluded from evaluation entirely to prevent boundary leakage.
+    # embargo_bars: additional bars at the start of each test fold (after the gap)
+    #              that are excluded from the fold's evaluation window. For
+    #              rules-based strategies this is conservative; for ML-augmented
+    #              strategies it prevents autocorrelation leakage from prior fold.
+    #
+    # For a rules-based strategy neither parameter changes what the engine
+    # learns (there is no learning), but they ensure fold boundaries don't
+    # overlap and that the reported per-fold metrics reflect only bars with
+    # meaningful temporal separation from adjacent folds.
+
+    total_buffer_per_fold = gap_bars + embargo_bars
+    usable_bars = len(bars) - total_buffer_per_fold * (n_folds - 1)
+    if usable_bars < n_folds * 10:
+        raise ValueError(
+            f"gap_bars={gap_bars} + embargo_bars={embargo_bars} consume too much of the "
+            f"dataset ({len(bars)} bars, {n_folds} folds). Reduce gap/embargo or increase data."
+        )
+    fold_size = usable_bars // n_folds
     all_trades = []
     fold_metrics = []
-    
+
     for k in range(n_folds):
-        start_idx = k * fold_size
+        # Nominal test-fold start in the full bars index.
+        start_idx = k * (fold_size + total_buffer_per_fold) + embargo_bars
+        # Skip the first embargo window only on folds after the first (fold 0
+        # has no preceding fold to be embargoed from).
+        if k == 0:
+            start_idx = 0
+        else:
+            start_idx = k * (fold_size + total_buffer_per_fold) + embargo_bars
+
         end_idx = start_idx + fold_size if k < n_folds - 1 else len(bars)
-        
-        # Test window is the fold itself
-        # For a true walkforward, we would train on [0..start_idx - gap], test on [start_idx..end_idx]
-        # But for rules based, we just test on [start_idx..end_idx]
+        end_idx = min(end_idx, len(bars))
+
+        if start_idx >= end_idx:
+            continue
+
         fold_bars = bars.iloc[start_idx:end_idx]
         
         engine = BacktestEngine(bt_config, inst)

@@ -19,8 +19,8 @@ app.layout = html.Div(
                         html.Label("Symbol"),
                         dcc.Dropdown(
                             id="input-symbol",
-                            options=[{"label": "ZN", "value": "ZN"}, {"label": "ES", "value": "ES"}],
-                            value="ZN",
+                            options=[{"label": "6E", "value": "6E"}, {"label": "6A", "value": "6A"}],
+                            value="6E",
                             style={"color": "#000", "marginBottom": "15px"}
                         ),
                         

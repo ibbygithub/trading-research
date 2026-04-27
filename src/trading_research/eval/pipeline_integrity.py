@@ -46,7 +46,9 @@ def generate_pipeline_integrity_report(run_dir: Path) -> Path:
         if col in trades.columns:
             trades[col] = pd.to_datetime(trades[col], utc=True)
 
-    symbol = trades["symbol"].iloc[0] if "symbol" in trades.columns else "ZN"
+    if "symbol" not in trades.columns or trades.empty:
+        raise ValueError("trades.parquet has no 'symbol' column — cannot generate integrity report.")
+    symbol = trades["symbol"].iloc[0]
 
     sections: list[str] = [
         "# Pipeline Integrity Report",

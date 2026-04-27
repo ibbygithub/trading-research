@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "layer": "clean",
+  "symbol": "6A",
+  "timeframe": "5m",
+  "adjustment": "backadjusted",
+  "row_count": 6104,
+  "date_range": {
+    "start": "2024-01-01T23:00:00+00:00",
+    "end": "2024-01-31T23:55:00+00:00"
+  },
+  "sources": [
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\clean\\6A_1m_backadjusted_2024-01-01_2024-01-31.parquet",
+      "built_at": "2026-04-19T03:31:24.009984+00:00",
+      "row_count": 29991
+    }
+  ],
+  "parameters": {
+    "freq": "5min"
+  },
+  "built_at": "2026-04-19T03:31:24.337989+00:00",
+  "code_commit": "ef241ef"
+}

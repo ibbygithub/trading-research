@@ -65,6 +65,55 @@ instruments:
       commission_usd: 2.00    # per side; $4.00 round trip
 
   # ---------------------------------------------------------------------------
+  # CME EUR/USD Futures (primary instrument, session 23+ pivot)
+  # ---------------------------------------------------------------------------
+
+  6E:
+    root_symbol: 6E
+    continuous_symbol: "@EC"           # TradeStation continuous-contract symbol.
+                                      # NOTE: TradeStation uses EC (not EU or 6E) as the
+                                      # root for Euro FX futures. Individual contracts:
+                                      # ECH24, ECM24, ECU24, ECZ24, etc.
+                                      # Verified against TS API 2026-04-25.
+    description: "Euro / U.S. Dollar futures"
+    exchange: CME
+    asset_class: fx
+    currency: USD
+
+    # Tick and contract economics. 1 tick = 0.00005 EUR/USD = $6.25 per contract.
+    # Contract notional = 125,000 EUR.
+    tick_size: 0.00005
+    tick_value_usd: 6.25
+    point_value_usd: 125000.0
+    contract_size_face_value: 125000    # 125,000 EUR notional
+
+    # Session hours in America/New_York. CME FX Globex: Sun–Fri 18:00–17:00 ET
+    # with a 1-hour daily halt 17:00–18:00 ET. RTH opens at 08:00 ET (London/NY
+    # overlap), not 08:20 (which is a CBOT bond-pit convention).
+    session:
+      timezone: America/New_York
+      globex:
+        open:  "18:00"
+        close: "17:00"                 # next-day close
+      rth:
+        open:  "08:00"
+        close: "17:00"
+
+    roll:
+      convention: first_business_day_of_expiration_month
+      notes: "Quarterly expirations (Mar/Jun/Sep/Dec). Liquidity migrates to front month well before expiry. CME last trading day is 2 business days before the 3rd Wednesday of delivery month."
+
+    data:
+      base_timeframe: 1m
+      historical_source: tradestation
+      tradestation_session_template: null
+      calendar: CMEGlobex_FX          # pandas-market-calendars calendar name.
+
+    backtest_defaults:
+      slippage_ticks: 1       # per side; 1 tick = $6.25 for 6E
+      commission_usd: 1.75    # per side; $3.50 round trip (TradeStation futures rate)
+
+  # ---------------------------------------------------------------------------
   # CME FX Futures
   # NOTE on TradeStation naming: CME root symbols (6A, 6C, 6N) differ from
   # TradeStation roots (AD, CD, NE1). The continuous_symbol field holds the

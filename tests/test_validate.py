@@ -14,8 +14,13 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+from trading_research.core.instruments import InstrumentRegistry
 from trading_research.data.schema import BAR_SCHEMA
 from trading_research.data.validate import validate_bar_dataset, _is_post_maintenance_gap
+
+_registry = InstrumentRegistry()
+_ZN = _registry.get("ZN")
+_6A = _registry.get("6A")
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +77,7 @@ def test_perfect_dataset_passes(tmp_path: Path) -> None:
     timestamps = _all_jan2_bars()
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is True
     assert report["failures"] == []
@@ -87,7 +92,7 @@ def test_report_written_next_to_parquet(tmp_path: Path) -> None:
     timestamps = _all_jan2_bars()
     path = _make_parquet(tmp_path, timestamps)
     validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=True
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=True
     )
     expected_json = tmp_path / "ZN_1m_test.quality.json"
     assert expected_json.exists()
@@ -102,7 +107,7 @@ def test_report_not_written_when_suppressed(tmp_path: Path) -> None:
     timestamps = _all_jan2_bars()
     path = _make_parquet(tmp_path, timestamps)
     validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert not list(tmp_path.glob("*.quality.json"))
 
@@ -116,7 +121,7 @@ def test_duplicate_timestamps_fails(tmp_path: Path) -> None:
     timestamps.append(timestamps[10])
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is False
     assert report["duplicate_timestamps"] == 1
@@ -127,7 +132,7 @@ def test_inverted_ohlc_fails(tmp_path: Path) -> None:
     timestamps = _all_jan2_bars()[:5]
     path = _make_parquet(tmp_path, timestamps, high=113.0, low=114.0)  # low > high
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is False
     assert report["inverted_high_low"] == len(timestamps)
@@ -143,7 +148,7 @@ def test_missing_full_session_fails(tmp_path: Path) -> None:
     timestamps = _all_jan2_bars()[:5]
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is False
     assert len(report["large_gaps"]) > 0
@@ -161,7 +166,7 @@ def test_large_gap_fails(tmp_path: Path) -> None:
     timestamps = all_ts[:gap_start] + all_ts[gap_end:]
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is False
     assert len(report["large_gaps"]) >= 1
@@ -176,7 +181,7 @@ def test_minor_gap_does_not_fail(tmp_path: Path) -> None:
     timestamps = all_ts[:gap_start] + all_ts[gap_end:]
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is True
     assert report["large_gaps"] == []
@@ -203,7 +208,7 @@ def test_all_large_gaps_reported_not_truncated(tmp_path: Path) -> None:
     timestamps = [all_ts[i] for i in sorted(keep)]
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is False
     # All 5 gaps must appear in large_gaps — not truncated to 3.
@@ -227,7 +232,7 @@ def test_failures_list_covers_all_rth_gaps(tmp_path: Path) -> None:
     timestamps = [all_ts[i] for i in sorted(keep)]
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is False
     rth_failure_lines = [f for f in report["failures"] if "RTH" in f]
@@ -289,7 +294,7 @@ def test_post_maintenance_gaps_excluded_from_verdict(tmp_path: Path) -> None:
     timestamps = [ts for ts in all_ts if ts not in excluded_ts]
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is True, f"Should pass but got failures: {report['failures']}"
     assert report["excluded_gaps_count"] >= 1
@@ -304,20 +309,13 @@ def test_post_maintenance_gaps_excluded_from_verdict(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def test_juneteenth_not_a_failure_for_cbot(tmp_path: Path) -> None:
-    """June 19 2024 (Juneteenth) is a CME closure — missing bars should not fail.
-
-    CME sessions span two UTC calendar days (e.g. the June 19 trade-date session
-    starts at ~22:00 UTC June 18 and ends at ~20:00 UTC June 19). We remove bars
-    using the exact session open/close from the schedule, not a UTC date string,
-    to avoid accidentally removing bars from adjacent sessions.
-    """
+    """June 19 2024 (Juneteenth) is a CME closure — missing bars should not fail."""
     import pandas_market_calendars as mcal
 
     cal = mcal.get_calendar("CBOT_Bond")
     sched = cal.schedule("2024-06-18", "2024-06-20")
     all_ts = [str(ts) for ts in mcal.date_range(sched, frequency="1min")]
 
-    # Remove bars belonging to the June 19 trade-date session specifically.
     june19_key = pd.Timestamp("2024-06-19")
     sess_open = sched.loc[june19_key, "market_open"]
     sess_close = sched.loc[june19_key, "market_close"]
@@ -329,7 +327,7 @@ def test_juneteenth_not_a_failure_for_cbot(tmp_path: Path) -> None:
 
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 6, 18), date(2024, 6, 20), write_report=False
+        path, _ZN, date(2024, 6, 18), date(2024, 6, 20), write_report=False
     )
     assert report["passed"] is True, f"Juneteenth gap caused failure: {report['failures']}"
     assert "juneteenth_2022+" in report.get("calendar_patches_applied", [])
@@ -339,20 +337,17 @@ def test_juneteenth_not_applied_before_2022(tmp_path: Path) -> None:
     """Juneteenth patch is not applied for years before 2022."""
     import pandas_market_calendars as mcal
 
-    # June 19 2019 — Juneteenth was not yet a CME closure.
     cal = mcal.get_calendar("CBOT_Bond")
     sched = cal.schedule("2019-06-19", "2019-06-19")
     if len(sched) == 0:
         pytest.skip("CBOT_Bond has no session on 2019-06-19 in this library version")
 
     all_ts = [str(ts) for ts in mcal.date_range(sched, frequency="1min")]
-    # Remove most of the session (inject a large gap) to force a failure.
     timestamps = all_ts[:5]
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2019, 6, 19), date(2019, 6, 19), write_report=False
+        path, _ZN, date(2019, 6, 19), date(2019, 6, 19), write_report=False
     )
-    # Should fail — Juneteenth patch only applies from 2022.
     assert report["passed"] is False
 
 
@@ -378,21 +373,19 @@ def test_expected_count_matches_calendar(tmp_path: Path) -> None:
     timestamps = _all_jan2_bars()
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["expected_row_count"] == expected
 
 
-def test_explicit_calendar_name_override(tmp_path: Path) -> None:
-    """calendar_name kwarg bypasses the instrument registry lookup."""
+def test_calendar_read_from_instrument(tmp_path: Path) -> None:
+    """calendar field in the report comes from instrument.calendar_name."""
     timestamps = _all_jan2_bars()
     path = _make_parquet(tmp_path, timestamps)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2),
-        calendar_name="CBOT_Bond",
-        write_report=False,
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
-    assert report["calendar"] == "CBOT_Bond"
+    assert report["calendar"] == _ZN.calendar_name
 
 
 # ---------------------------------------------------------------------------
@@ -404,7 +397,128 @@ def test_zero_buy_sell_coverage_still_passes(tmp_path: Path) -> None:
     timestamps = _all_jan2_bars()
     path = _make_parquet(tmp_path, timestamps, buy_volume=None, sell_volume=None)
     report = validate_bar_dataset(
-        path, "ZN", date(2024, 1, 2), date(2024, 1, 2), write_report=False
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
     )
     assert report["passed"] is True
     assert report["buy_sell_volume_coverage_pct"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Per-symbol RTH window (OI-010)
+# ---------------------------------------------------------------------------
+
+def test_rth_window_is_per_symbol(tmp_path: Path) -> None:
+    """Gap classification must use the symbol's RTH window, not ZN's hardcoded one.
+
+    ZN RTH: 08:20–15:00 ET.  6A RTH: 08:00–17:00 ET.
+
+    A gap at 08:05 ET is *outside* ZN RTH but *inside* 6A RTH.  When
+    validate_bar_dataset is called with instrument=_6A, that gap must be
+    classified as an RTH gap (structural), not an overnight gap.
+    """
+    import pandas_market_calendars as mcal
+
+    cal = mcal.get_calendar("CMEGlobex_FX")
+    sched = cal.schedule("2024-01-02", "2024-01-02")
+    all_bars = [str(ts) for ts in mcal.date_range(sched, frequency="1min")]
+
+    remove_utc = {
+        "2024-01-02 13:05:00+00:00",
+        "2024-01-02 13:06:00+00:00",
+        "2024-01-02 13:07:00+00:00",
+        "2024-01-02 13:08:00+00:00",
+        "2024-01-02 13:09:00+00:00",
+        "2024-01-02 13:10:00+00:00",
+    }
+    trimmed = [ts for ts in all_bars if ts not in remove_utc]
+
+    rows = []
+    for ts_str in trimmed:
+        ts_utc = pd.Timestamp(ts_str, tz="UTC")
+        ts_ny = ts_utc.tz_convert("America/New_York")
+        rows.append({
+            "timestamp_utc": ts_utc,
+            "timestamp_ny": ts_ny,
+            "open": 0.6500,
+            "high": 0.6510,
+            "low": 0.6490,
+            "close": 0.6505,
+            "volume": 100,
+            "buy_volume": 60,
+            "sell_volume": 40,
+            "up_ticks": 10,
+            "down_ticks": 8,
+            "total_ticks": 18,
+        })
+
+    df = pd.DataFrame(rows)
+    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
+    df["timestamp_ny"] = pd.to_datetime(df["timestamp_ny"])
+    tbl = pa.Table.from_pandas(df, schema=BAR_SCHEMA, preserve_index=False)
+    path = tmp_path / "6A_1m_test.parquet"
+    pq.write_table(tbl, path)
+
+    report = validate_bar_dataset(
+        path, _6A, date(2024, 1, 2), date(2024, 1, 2), write_report=False
+    )
+
+    rth_large = [g for g in report["large_gaps"] if g["in_rth"]]
+    assert len(rth_large) >= 1, (
+        "A gap inside 6A RTH (08:05 ET) was not classified as an RTH gap. "
+        "Likely still using ZN's 08:20 open instead of 6A's 08:00 open."
+    )
+
+
+def test_zn_rth_window_unchanged(tmp_path: Path) -> None:
+    """ZN RTH (08:20 ET open) still reads correctly from the registry after OI-010."""
+    import pandas_market_calendars as mcal
+
+    cal = mcal.get_calendar("CBOT_Bond")
+    sched = cal.schedule("2024-01-02", "2024-01-02")
+    all_bars = [str(ts) for ts in mcal.date_range(sched, frequency="1min")]
+
+    remove_utc = {
+        "2024-01-02 13:05:00+00:00",
+        "2024-01-02 13:06:00+00:00",
+        "2024-01-02 13:07:00+00:00",
+        "2024-01-02 13:08:00+00:00",
+        "2024-01-02 13:09:00+00:00",
+        "2024-01-02 13:10:00+00:00",
+    }
+    trimmed = [ts for ts in all_bars if ts not in remove_utc]
+
+    rows = []
+    for ts_str in trimmed:
+        ts_utc = pd.Timestamp(ts_str, tz="UTC")
+        ts_ny = ts_utc.tz_convert("America/New_York")
+        rows.append({
+            "timestamp_utc": ts_utc,
+            "timestamp_ny": ts_ny,
+            "open": 113.5,
+            "high": 113.75,
+            "low": 113.25,
+            "close": 113.5,
+            "volume": 100,
+            "buy_volume": 60,
+            "sell_volume": 40,
+            "up_ticks": 10,
+            "down_ticks": 8,
+            "total_ticks": 18,
+        })
+
+    df = pd.DataFrame(rows)
+    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
+    df["timestamp_ny"] = pd.to_datetime(df["timestamp_ny"])
+    tbl = pa.Table.from_pandas(df, schema=BAR_SCHEMA, preserve_index=False)
+    path = tmp_path / "ZN_1m_rth_test.parquet"
+    pq.write_table(tbl, path)
+
+    report = validate_bar_dataset(
+        path, _ZN, date(2024, 1, 2), date(2024, 1, 2), write_report=False
+    )
+
+    rth_large = [g for g in report["large_gaps"] if g["in_rth"]]
+    assert len(rth_large) == 0, (
+        "A pre-RTH gap (08:05 ET, before ZN's 08:20 open) was misclassified "
+        "as an RTH gap. ZN RTH window may have changed incorrectly."
+    )

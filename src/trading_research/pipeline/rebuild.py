@@ -12,6 +12,7 @@ from pathlib import Path
 
 import yaml
 
+from trading_research.core.instruments import Instrument
 from trading_research.data.manifest import (
     build_clean_manifest,
     write_manifest,
@@ -30,12 +31,12 @@ _CONFIGS_ROOT = Path(__file__).parents[3] / "configs"
 
 
 def rebuild_clean(
-    symbol: str = "ZN",
+    instrument: Instrument,
     data_root: Path = _DATA_ROOT,
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> None:
-    """Rebuild all CLEAN files for *symbol* from cached RAW contracts.
+    """Rebuild all CLEAN files for *instrument* from cached RAW contracts.
 
     Does not call the TradeStation API — all contracts must already be cached
     in ``data/raw/contracts/``. Raises if any required contract is missing.
@@ -53,6 +54,7 @@ def rebuild_clean(
     )
     from trading_research.data.resample import resample_and_write, resample_daily, write_resampled
 
+    symbol = instrument.symbol
     clean_dir = data_root / "clean"
     contracts_dir = data_root / "raw" / "contracts"
 
@@ -66,7 +68,7 @@ def rebuild_clean(
 
     # Step 1: back-adjusted continuous 1m
     result = build_back_adjusted_continuous(
-        symbol=symbol,
+        instrument=instrument,
         start_date=start_date,
         end_date=end_date,
         output_dir=clean_dir,
@@ -76,7 +78,7 @@ def rebuild_clean(
     # result.adjusted_path / result.unadjusted_path are the output files
     adj_path = result.adjusted_path
     unadj_path = result.unadjusted_path
-    source_contract_paths = sorted(contracts_dir.glob("TY*.parquet"))
+    source_contract_paths = sorted(contracts_dir.glob(f"{result.ts_root}*.parquet"))
 
     for path, adjustment in [(adj_path, "backadjusted"), (unadj_path, "unadjusted")]:
         manifest = build_clean_manifest(
@@ -160,17 +162,18 @@ def rebuild_clean(
 
 
 def rebuild_features(
-    symbol: str = "ZN",
+    instrument: Instrument,
     feature_set_tag: str = "base-v1",
     data_root: Path = _DATA_ROOT,
     configs_root: Path = _CONFIGS_ROOT,
 ) -> None:
-    """Rebuild FEATURES files for *symbol* from CLEAN data.
+    """Rebuild FEATURES files for *instrument* from CLEAN data.
 
     Uses the feature set defined in ``configs/featuresets/{feature_set_tag}.yaml``.
     """
     from trading_research.indicators.features import build_features
 
+    symbol = instrument.symbol
     clean_dir = data_root / "clean"
     features_dir = data_root / "features"
     config_path = configs_root / "featuresets" / f"{feature_set_tag}.yaml"

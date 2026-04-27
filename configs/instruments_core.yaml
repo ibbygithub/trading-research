@@ -1,0 +1,107 @@
+# Instrument registry — core model (session 23-a).
+#
+# This is the backing store for trading_research.core.InstrumentRegistry.
+# It uses the flat schema defined in src/trading_research/core/instruments.py.
+#
+# The legacy configs/instruments.yaml (nested schema) continues to serve
+# src/trading_research/data.instruments until session 25 consolidates them.
+#
+# Tick sizes and contract values verified against CME published specs.
+# Commission and margin values confirmed by Ibby 2026-04-19.
+#
+# Do NOT add indicators, HTF settings, or backtest parameters here.
+# Those belong in configs/featuresets/ and per-strategy YAML files.
+
+instruments:
+
+  ZN:
+    symbol: ZN
+    tradestation_symbol: "@TY"
+    name: "10-Year Treasury Note"
+    exchange: "CBOT"
+    asset_class: "rates"
+    # 1 tick = 1/64 of a point = 0.015625; point value = $1,000
+    tick_size: "0.015625"
+    tick_value_usd: "15.625"
+    contract_multiplier: "1000"
+    is_micro: false
+    commission_per_side_usd: "1.75"
+    intraday_initial_margin_usd: "500"
+    overnight_initial_margin_usd: null
+    session_open_et: "18:00"
+    session_close_et: "17:00"
+    rth_open_et: "08:20"
+    rth_close_et: "15:00"
+    calendar_name: "CBOT_Bond"
+    roll_method: "panama"
+
+  6E:
+    symbol: 6E
+    tradestation_symbol: "@EC"
+    # NOTE: TradeStation uses EC (not EU) as the root for Euro FX futures.
+    # CME root is 6E; TS root is EC. Individual contracts: ECH24, ECM24, ECU24, ECZ24.
+    # Continuous contract: @EC. Verified against TS API 2026-04-25.
+    name: "Euro FX"
+    exchange: "CME"
+    asset_class: "fx"
+    # 1 tick = 0.00005 per EUR; contract = 125,000 EUR; tick value = $6.25
+    tick_size: "0.00005"
+    tick_value_usd: "6.25"
+    contract_multiplier: "125000"
+    is_micro: false
+    commission_per_side_usd: "1.75"
+    intraday_initial_margin_usd: "500"
+    overnight_initial_margin_usd: null
+    session_open_et: "18:00"
+    session_close_et: "17:00"
+    # FX CME: NY active session starts 08:00 ET (London/NY overlap); 08:20 is bond-pit legacy
+    rth_open_et: "08:00"
+    rth_close_et: "17:00"
+    calendar_name: "CMEGlobex_FX"
+    roll_method: "panama"
+
+  6A:
+    symbol: 6A
+    tradestation_symbol: "@AD"
+    name: "Australian Dollar"
+    exchange: "CME"
+    asset_class: "fx"
+    # CME spec: 1 tick = 0.0001 per AUD; contract = 100,000 AUD; tick value = $10.00
+    # (session spec showed 0.00005/$5.00 — corrected to verified CME values)
+    tick_size: "0.0001"
+    tick_value_usd: "10.00"
+    contract_multiplier: "100000"
+    is_micro: false
+    commission_per_side_usd: "1.75"
+    intraday_initial_margin_usd: "500"
+    overnight_initial_margin_usd: null
+    session_open_et: "18:00"
+    session_close_et: "17:00"
+    # FX CME: NY active session starts 08:00 ET (London/NY overlap); 08:20 is bond-pit legacy
+    rth_open_et: "08:00"
+    rth_close_et: "17:00"
+    calendar_name: "CMEGlobex_FX"
+    roll_method: "panama"
+
+  6C:
+    symbol: 6C
+    tradestation_symbol: "@CD"
+    name: "Canadian Dollar"
+    exchange: "CME"
+    asset_class: "fx"
+    # CME spec: 1 tick = 0.0001 per CAD; contract = 100,000 CAD; tick value = $10.00
+    # (session spec showed 0.00005/$5.00 — corrected to verified CME values)
+    tick_size: "0.0001"
+    tick_value_usd: "10.00"
+    contract_multiplier: "100000"
+    is_micro: false
+    commission_per_side_usd: "1.75"
+    intraday_initial_margin_usd: "500"
+    overnight_initial_margin_usd: null
+    session_open_et: "18:00"
+    session_close_et: "17:00"
+    # FX CME: NY active session starts 08:00 ET (London/NY overlap); 08:20 is bond-pit legacy
+    rth_open_et: "08:00"
+    rth_close_et: "17:00"
+    calendar_name: "CMEGlobex_FX"
+    roll_method: "panama"

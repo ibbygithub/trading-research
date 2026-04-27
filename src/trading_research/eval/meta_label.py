@@ -7,6 +7,8 @@ can improve headline metrics.
 import numpy as np
 import pandas as pd
 
+from trading_research.utils import stats as _stats
+
 
 def evaluate_meta_labeling(
     trades: pd.DataFrame, 
@@ -30,31 +32,62 @@ def evaluate_meta_labeling(
     base_pnl = df["net_pnl_usd"].sum()
     base_count = len(df)
     base_win_rate = (df["net_pnl_usd"] > 0).mean()
-    
-    # Calculate base Calmar equivalent (using PnL series)
-    cum_pnl = df["net_pnl_usd"].cumsum()
-    max_dd = abs((cum_pnl - cum_pnl.cummax()).min())
-    base_calmar = (base_pnl / 16.0) / max_dd if max_dd > 0 else 0
-    
+
+    # Derive span_days from trade timestamps when available, else fallback.
+    if "exit_ts" in df.columns and "entry_ts" in df.columns:
+        span_days = max(
+            1,
+            (pd.to_datetime(df["exit_ts"]).max() - pd.to_datetime(df["entry_ts"]).min()).days,
+        )
+    else:
+        span_days = max(1, len(df))
+
+    base_calmar = _stats.calmar(df["net_pnl_usd"].values, span_days)
+
+    actual_wins = df["net_pnl_usd"] > 0
+
     for t in thresholds:
-        filtered = df[df["win_prob"] >= t]
-        count = len(filtered)
+        predicted_win = df["win_prob"] >= t
+        count = int(predicted_win.sum())
         if count == 0:
-            results.append({"threshold": t, "count": 0, "win_rate": 0, "calmar": 0})
+            results.append({
+                "threshold": t, "count": 0, "win_rate": 0.0, "calmar": 0.0,
+                "precision": float("nan"), "recall": float("nan"), "f1": float("nan"),
+            })
             continue
-            
-        pnl = filtered["net_pnl_usd"].sum()
-        win_rate = (filtered["net_pnl_usd"] > 0).mean()
-        
-        f_cum_pnl = filtered["net_pnl_usd"].cumsum()
-        f_max_dd = abs((f_cum_pnl - f_cum_pnl.cummax()).min())
-        calmar = (pnl / 16.0) / f_max_dd if f_max_dd > 0 else 0
-        
+
+        filtered = df[predicted_win]
+        win_rate = float((filtered["net_pnl_usd"] > 0).mean())
+
+        if "exit_ts" in filtered.columns and "entry_ts" in filtered.columns:
+            f_span = max(
+                1,
+                (pd.to_datetime(filtered["exit_ts"]).max() - pd.to_datetime(filtered["entry_ts"]).min()).days,
+            )
+        else:
+            f_span = span_days
+        calmar_val = _stats.calmar(filtered["net_pnl_usd"].values, f_span)
+
+        tp = int((predicted_win & actual_wins).sum())
+        fp = int((predicted_win & ~actual_wins).sum())
+        fn = int((~predicted_win & actual_wins).sum())
+
+        precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
+        recall = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (not np.isnan(precision) and not np.isnan(recall) and (precision + recall) > 0)
+            else float("nan")
+        )
+
         results.append({
             "threshold": t,
             "count": count,
             "win_rate": win_rate,
-            "calmar": calmar
+            "calmar": calmar_val,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
         })
         
     df_res = pd.DataFrame(results)
