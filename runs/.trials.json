@@ -1,30 +1,44 @@
-[
-  {
-    "timestamp": "2026-04-16T21:35:12.457446+00:00",
-    "strategy_id": "zn-macd-pullback-v1",
-    "config_hash": "ec195446d50e74bf7c8896ede3c8d43a",
-    "sharpe": -21.1100751039937,
-    "trial_group": "zn-macd-pullback-v1"
-  },
-  {
-    "timestamp": "2026-04-19T00:44:51.730545+00:00",
-    "strategy_id": "zn-macd-pullback-v1",
-    "config_hash": "4fdd807a5973416440795dd95b775a57",
-    "sharpe": -21.315314271595106,
-    "trial_group": "zn-macd-pullback-v1"
-  },
-  {
-    "timestamp": "2026-04-19T01:01:54.422488+00:00",
-    "strategy_id": "zn-macd-pullback-v1",
-    "config_hash": "4fdd807a5973416440795dd95b775a57",
-    "sharpe": -21.33096000826861,
-    "trial_group": "zn-macd-pullback-v1"
-  },
-  {
-    "timestamp": "2026-04-19T16:43:28.840765+00:00",
-    "strategy_id": "zn-vwap-reversion-v2",
-    "config_hash": "9583d39ee14e6de3cbc275b4904b32c5",
-    "sharpe": -9.096767974328635,
-    "trial_group": "zn-vwap-reversion-v2"
-  }
-]
+{
+  "trials": [
+    {
+      "code_version": "pre-hardening",
+      "cohort_label": "pre-hardening",
+      "config_hash": "ec195446d50e74bf7c8896ede3c8d43a",
+      "featureset_hash": null,
+      "sharpe": -21.1100751039937,
+      "strategy_id": "zn-macd-pullback-v1",
+      "timestamp": "2026-04-16T21:35:12.457446+00:00",
+      "trial_group": "zn-macd-pullback-v1"
+    },
+    {
+      "code_version": "pre-hardening",
+      "cohort_label": "pre-hardening",
+      "config_hash": "4fdd807a5973416440795dd95b775a57",
+      "featureset_hash": null,
+      "sharpe": -21.315314271595106,
+      "strategy_id": "zn-macd-pullback-v1",
+      "timestamp": "2026-04-19T00:44:51.730545+00:00",
+      "trial_group": "zn-macd-pullback-v1"
+    },
+    {
+      "code_version": "pre-hardening",
+      "cohort_label": "pre-hardening",
+      "config_hash": "4fdd807a5973416440795dd95b775a57",
+      "featureset_hash": null,
+      "sharpe": -21.33096000826861,
+      "strategy_id": "zn-macd-pullback-v1",
+      "timestamp": "2026-04-19T01:01:54.422488+00:00",
+      "trial_group": "zn-macd-pullback-v1"
+    },
+    {
+      "code_version": "pre-hardening",
+      "cohort_label": "pre-hardening",
+      "config_hash": "9583d39ee14e6de3cbc275b4904b32c5",
+      "featureset_hash": null,
+      "sharpe": -9.096767974328635,
+      "strategy_id": "zn-vwap-reversion-v2",
+      "timestamp": "2026-04-19T16:43:28.840765+00:00",
+      "trial_group": "zn-vwap-reversion-v2"
+    }
+  ]
+}

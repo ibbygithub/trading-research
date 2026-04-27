@@ -12,7 +12,7 @@ Design principles
 
 Usage
 -----
-    cfg = BacktestConfig(strategy_id="my-strat", symbol="ZN")
+    cfg = BacktestConfig(strategy_id="my-strat", symbol="6E")
     result = BacktestEngine(cfg, instrument_spec).run(bars_df, signals_df)
     result.trades          # pd.DataFrame conforming to TRADE_SCHEMA
     result.equity_curve    # pd.Series of cumulative net_pnl_usd

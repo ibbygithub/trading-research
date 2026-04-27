@@ -13,16 +13,17 @@ Usage:
 
 from __future__ import annotations
 
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
 
+from trading_research.core.instruments import InstrumentRegistry
+
 app = typer.Typer(
     name="trading-research",
-    help="ZN Forensic Trading Desk — pipeline automation.",
+    help="Trading Research Platform — pipeline automation.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -91,7 +92,7 @@ def backfill_manifests(
 
 @rebuild_app.command(name="clean")
 def rebuild_clean(
-    symbol: Annotated[str, typer.Option(help="Instrument symbol.")] = "ZN",
+    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E).")],
     data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Rebuild all CLEAN files for SYMBOL from cached RAW contracts.
@@ -104,7 +105,12 @@ def rebuild_clean(
 
     root = data_root or _DATA_ROOT
     try:
-        _rebuild_clean(symbol=symbol, data_root=root)
+        registry = InstrumentRegistry()
+        instrument = registry.get(symbol)
+        _rebuild_clean(instrument=instrument, data_root=root)
+    except KeyError as e:
+        typer.echo(f"ERROR: unknown symbol — {e}", err=True)
+        raise typer.Exit(code=2)
     except FileNotFoundError as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(code=2)
@@ -120,20 +126,24 @@ def rebuild_clean(
 
 @rebuild_app.command(name="features")
 def rebuild_features(
-    symbol: Annotated[str, typer.Option(help="Instrument symbol.")] = "ZN",
+    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E).")],
     feature_set: Annotated[str, typer.Option("--set", help="Feature set tag.")] = "base-v1",
     data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Rebuild FEATURES files for SYMBOL using the named feature set.
 
-    Example: uv run trading-research rebuild features --symbol ZN --set base-v1
+    Example: uv run trading-research rebuild features --symbol 6E --set base-v1
     """
     from trading_research.pipeline.rebuild import rebuild_features as _rebuild_features
-    from trading_research.utils.logging import get_logger
 
     root = data_root or _DATA_ROOT
     try:
-        _rebuild_features(symbol=symbol, feature_set_tag=feature_set, data_root=root)
+        registry = InstrumentRegistry()
+        instrument = registry.get(symbol)
+        _rebuild_features(instrument=instrument, feature_set_tag=feature_set, data_root=root)
+    except KeyError as e:
+        typer.echo(f"ERROR: unknown symbol — {e}", err=True)
+        raise typer.Exit(code=2)
     except FileNotFoundError as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(code=2)
@@ -143,6 +153,183 @@ def rebuild_features(
     except Exception as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(code=1)
+
+
+# ---------------------------------------------------------------------------
+# pipeline
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def pipeline(
+    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E, ZN).")],
+    feature_set: Annotated[str, typer.Option("--set", help="Feature set tag.")] = "base-v1",
+    start: Annotated[Optional[str], typer.Option(help="Start date YYYY-MM-DD (default: full history).")] = None,
+    end: Annotated[Optional[str], typer.Option(help="End date YYYY-MM-DD (default: today).")] = None,
+    skip_validate: Annotated[bool, typer.Option("--skip-validate", help="Skip the data quality gate.")] = False,
+    data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
+) -> None:
+    """Run the full data pipeline for SYMBOL.
+
+    Stages (in order):
+
+    1. Rebuild CLEAN — downloads individual quarterly contracts from TradeStation,
+       back-adjusts, stitches, resamples to 5m/15m/60m/240m/1D.
+    2. Validate — runs the calendar-aware quality check on the CLEAN 1m parquet.
+       Structural failures (negative volumes, inverted OHLC, duplicate timestamps)
+       abort the pipeline. Missing buy/sell volume is warned but non-fatal.
+    3. Rebuild FEATURES — applies the named feature set to CLEAN 5m and 15m.
+
+    This command is the Track A acceptance gate: it must run end-to-end for any
+    registered instrument without code changes beyond configs/instruments.yaml.
+
+    Example:
+        uv run trading-research pipeline --symbol 6E
+        uv run trading-research pipeline --symbol 6E --set base-v1 --start 2020-01-01
+    """
+    import glob as _glob
+    from datetime import date
+
+    from trading_research.core.instruments import InstrumentRegistry
+    from trading_research.pipeline.rebuild import (
+        rebuild_clean as _rebuild_clean,
+        rebuild_features as _rebuild_features,
+    )
+
+    root = data_root or _DATA_ROOT
+
+    # --- Resolve instrument ---
+    try:
+        registry = InstrumentRegistry()
+        instrument = registry.get(symbol)
+    except KeyError as e:
+        typer.echo(f"ERROR: unknown symbol — {e}", err=True)
+        raise typer.Exit(code=2)
+
+    start_date = date.fromisoformat(start) if start else None
+    end_date = date.fromisoformat(end) if end else None
+
+    # -----------------------------------------------------------------------
+    # Stage 1: Rebuild CLEAN (downloads contracts + back-adjusts + resamples)
+    # -----------------------------------------------------------------------
+    typer.echo(f"\n{'='*60}")
+    typer.echo(f"  Stage 1/3 — CLEAN  [{symbol}]")
+    typer.echo(f"{'='*60}")
+    try:
+        _rebuild_clean(instrument=instrument, data_root=root, start_date=start_date, end_date=end_date)
+    except FileNotFoundError as e:
+        typer.echo(f"ERROR (clean): {e}", err=True)
+        raise typer.Exit(code=2)
+    except Exception as e:
+        typer.echo(f"ERROR (clean): {e}", err=True)
+        raise typer.Exit(code=1)
+
+    # -----------------------------------------------------------------------
+    # Stage 2: Validate CLEAN 1m
+    # -----------------------------------------------------------------------
+    typer.echo(f"\n{'='*60}")
+    typer.echo(f"  Stage 2/3 — VALIDATE  [{symbol}]")
+    typer.echo(f"{'='*60}")
+
+    if skip_validate:
+        typer.echo("  SKIPPED (--skip-validate)")
+    else:
+        # Find the CLEAN 1m backadjusted parquet just written.
+        clean_dir = root / "clean"
+        candidates = sorted(_glob.glob(str(clean_dir / f"{symbol}_1m_backadjusted_*.parquet")))
+        if not candidates:
+            typer.echo(
+                f"ERROR (validate): no CLEAN 1m parquet found for {symbol} in {clean_dir}",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+
+        clean_1m_path = Path(candidates[-1])
+        typer.echo(f"  Validating: {clean_1m_path.name}")
+
+        try:
+            from trading_research.data.validate import validate_bar_dataset
+            import pyarrow.parquet as pq
+
+            tbl = pq.read_table(clean_1m_path)
+            import pandas as pd
+            df = tbl.to_pandas()
+            df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
+
+            actual_start = df["timestamp_utc"].min().date() if start_date is None else start_date
+            actual_end = df["timestamp_utc"].max().date() if end_date is None else end_date
+
+            report = validate_bar_dataset(
+                parquet_path=clean_1m_path,
+                instrument=instrument,
+                start_date=actual_start,
+                end_date=actual_end,
+            )
+        except Exception as e:
+            typer.echo(f"ERROR (validate): {e}", err=True)
+            raise typer.Exit(code=1)
+
+        # Report structural metrics.
+        row_count = report.get("row_count", report.get("total_bars", "N/A"))
+        typer.echo(f"  Rows validated:       {row_count:,}" if isinstance(row_count, int) else f"  Rows validated:       {row_count}")
+        dup_ts = report.get("duplicate_timestamps", 0)
+        neg_vol = report.get("negative_volumes", 0)
+        inv_ohlc = report.get("inverted_high_low", 0)
+        typer.echo(f"  Duplicate timestamps: {dup_ts}")
+        typer.echo(f"  Negative volumes:     {neg_vol}")
+        typer.echo(f"  Inverted OHLC bars:   {inv_ohlc}")
+        large_gaps = report.get("large_gaps", [])
+        typer.echo(f"  Large gaps (total):   {len(large_gaps)}")
+
+        # Only the gap breakdown varies by instrument continuity method; report for info.
+        rth_gaps = [g for g in large_gaps if g.get("in_rth")]
+        off_gaps = [g for g in large_gaps if not g.get("in_rth")]
+        if rth_gaps:
+            typer.echo(f"  WARNING: {len(rth_gaps)} RTH gap(s) — likely contract roll seams in back-adjusted data (non-fatal)")
+        if off_gaps:
+            typer.echo(f"  WARNING: {len(off_gaps)} overnight gap(s) — non-RTH, non-fatal")
+
+        bv_cov = report.get("buy_sell_volume_coverage_pct", None)
+        if bv_cov is not None and bv_cov < 100.0:
+            typer.echo(f"  WARNING: buy/sell volume coverage {bv_cov:.1f}% (non-fatal — strategy code must handle nulls)")
+
+        # Hard gate: only truly structural failures abort the pipeline.
+        # Gap analysis is informational for back-adjusted continuous futures —
+        # contract roll seams produce expected gaps at expiry dates.
+        structural_failed = dup_ts or neg_vol or inv_ohlc
+        null_req = report.get("null_required_fields", 0)
+        if null_req:
+            structural_failed = True
+
+        if structural_failed:
+            typer.echo("\n  VALIDATION FAILED — structural data integrity errors:", err=True)
+            for f in report.get("failures", [])[:20]:
+                # Show only the truly structural ones (not gap reports)
+                if not f.startswith("Large gap") and "overnight" not in f.lower() and "missing bars" not in f.lower():
+                    typer.echo(f"    • {f}", err=True)
+            raise typer.Exit(code=1)
+
+        typer.echo("  Quality gate: PASSED  (gaps are informational for back-adjusted continuous contracts)")
+
+    # -----------------------------------------------------------------------
+    # Stage 3: Rebuild FEATURES
+    # -----------------------------------------------------------------------
+    typer.echo(f"\n{'='*60}")
+    typer.echo(f"  Stage 3/3 — FEATURES  [{symbol} / {feature_set}]")
+    typer.echo(f"{'='*60}")
+    try:
+        _rebuild_features(instrument=instrument, feature_set_tag=feature_set, data_root=root)
+    except FileNotFoundError as e:
+        typer.echo(f"ERROR (features): {e}", err=True)
+        raise typer.Exit(code=2)
+    except Exception as e:
+        typer.echo(f"ERROR (features): {e}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"\n{'='*60}")
+    typer.echo(f"  Pipeline complete — {symbol} / {feature_set}")
+    typer.echo(f"  Run stationarity: uv run trading-research stationarity --symbol {symbol}")
+    typer.echo(f"{'='*60}\n")
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +355,7 @@ def inventory(
 
 @app.command()
 def replay(
-    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. ZN).")] = "ZN",
+    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E).")],
     from_date: Annotated[Optional[str], typer.Option("--from", help="Window start YYYY-MM-DD.")] = None,
     to_date: Annotated[Optional[str], typer.Option("--to", help="Window end YYYY-MM-DD.")] = None,
     trades: Annotated[Optional[Path], typer.Option(help="Path to a trades JSON log.")] = None,
@@ -560,6 +747,103 @@ def walkforward(
     typer.echo("")
     typer.echo(f"Run output: {run_dir}")
     typer.echo("Done.")
+
+
+# ---------------------------------------------------------------------------
+# stationarity
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def stationarity(
+    symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E, ZN).")],
+    start: Annotated[Optional[str], typer.Option(help="Start date YYYY-MM-DD.")] = None,
+    end: Annotated[Optional[str], typer.Option(help="End date YYYY-MM-DD.")] = None,
+    timeframes: Annotated[str, typer.Option(help="Comma-separated timeframes to test.")] = "1m,5m,15m",
+    out: Annotated[Optional[Path], typer.Option(help="Override runs/ root.")] = None,
+) -> None:
+    """Run the stationarity suite (ADF, Hurst, OU) on CLEAN 1m bars for SYMBOL.
+
+    Writes parquet + JSON summary + markdown to runs/stationarity/<SYMBOL>/<YYYYMMDD-HHMM>/.
+
+    Example:
+        uv run trading-research stationarity --symbol ZN --start 2024-01-01 --end 2024-12-31
+    """
+    import glob as _glob
+    from datetime import datetime, timezone
+
+    import pandas as pd
+
+    from trading_research.core.instruments import InstrumentRegistry
+    from trading_research.stats.stationarity import run_stationarity_suite, write_report
+
+    # --- Resolve instrument ---
+    try:
+        registry = InstrumentRegistry()
+        instrument = registry.get(symbol)
+    except KeyError as e:
+        typer.echo(f"ERROR: unknown symbol — {e}", err=True)
+        raise typer.Exit(code=2)
+
+    # --- Find CLEAN 1m parquet ---
+    clean_dir = _DATA_ROOT / "clean"
+    patterns = [
+        str(clean_dir / f"{symbol}_1m_backadjusted_*.parquet"),
+        str(clean_dir / f"{symbol}_1m_unadjusted_*.parquet"),
+    ]
+    candidates: list[str] = []
+    for pat in patterns:
+        candidates.extend(_glob.glob(pat))
+
+    if not candidates:
+        typer.echo(
+            f"ERROR: no CLEAN 1m parquet found for {symbol} in {clean_dir}",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    typer.echo(f"Loading CLEAN bars: {[Path(c).name for c in candidates]}")
+    frames = [pd.read_parquet(p, engine="pyarrow") for p in sorted(candidates)]
+    bars = pd.concat(frames, ignore_index=True)
+
+    # Normalise timestamp column.
+    bars["timestamp_utc"] = pd.to_datetime(bars["timestamp_utc"], utc=True)
+    bars = bars.sort_values("timestamp_utc").reset_index(drop=True)
+
+    if start:
+        bars = bars[bars["timestamp_utc"] >= pd.Timestamp(start, tz="UTC")]
+    if end:
+        bars = bars[bars["timestamp_utc"] <= pd.Timestamp(end, tz="UTC")]
+
+    if bars.empty:
+        typer.echo("ERROR: No bars in the specified date range.", err=True)
+        raise typer.Exit(code=2)
+
+    typer.echo(
+        f"Bars: {len(bars):,}  "
+        f"({bars['timestamp_utc'].iloc[0].date()} to {bars['timestamp_utc'].iloc[-1].date()})"
+    )
+
+    # --- Run suite ---
+    tf_list = [t.strip() for t in timeframes.split(",") if t.strip()]
+    typer.echo(f"Running stationarity suite: timeframes={tf_list}")
+
+    report = run_stationarity_suite(instrument=instrument, bars=bars, timeframes=tf_list)
+
+    # --- Write outputs ---
+    runs_root = out or (Path(__file__).parents[3] / "runs")
+    run_ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M")
+    output_dir = runs_root / "stationarity" / symbol / run_ts
+    parquet_path, json_path, md_path = write_report(report, output_dir)
+
+    typer.echo(f"\nOutputs written to {output_dir}:")
+    typer.echo(f"  {parquet_path.name}")
+    typer.echo(f"  {json_path.name}")
+    typer.echo(f"  {md_path.name}")
+
+    # --- Print markdown summary ---
+    typer.echo("")
+    typer.echo(md_path.read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------

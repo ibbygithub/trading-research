@@ -52,7 +52,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from trading_research.data.instruments import default_registry
+from trading_research.core.instruments import Instrument
 from trading_research.data.schema import BAR_SCHEMA
 from trading_research.data.tradestation.auth import TradeStationAuth
 from trading_research.data.tradestation.client import TradeStationClient
@@ -353,7 +353,7 @@ class ContinuousResult:
 
 
 def build_back_adjusted_continuous(
-    symbol: str,
+    instrument: Instrument,
     start_date: date,
     end_date: date,
     roll_days_before: int = DEFAULT_ROLL_DAYS_BEFORE,
@@ -362,11 +362,11 @@ def build_back_adjusted_continuous(
     contracts_dir: Path = DEFAULT_CONTRACTS_DIR,
     auth: TradeStationAuth | None = None,
 ) -> ContinuousResult:
-    """Build a back-adjusted continuous series for ``symbol`` (e.g. ``"ZN"``).
+    """Build a back-adjusted continuous series for an instrument.
 
     Steps
     -----
-    1. Resolve the TradeStation root symbol from the instrument registry.
+    1. Derive the TradeStation root symbol from instrument.tradestation_symbol.
     2. Generate the sequence of quarterly contracts covering [start_date, end_date].
     3. For each contract, download bars (or load from cache in contracts_dir).
     4. Compute the additive adjustment at each roll:
@@ -380,9 +380,9 @@ def build_back_adjusted_continuous(
     if adjustment_method != "additive":
         raise NotImplementedError("Only 'additive' adjustment is supported.")
 
-    spec = default_registry().get(symbol)
-    # Extract TS root from the continuous symbol (e.g. "@TY" → "TY").
-    ts_root = spec.continuous_symbol.lstrip("@")
+    symbol = instrument.symbol
+    # Extract TS root from the TradeStation symbol (e.g. "@TY" → "TY", "@EU" → "EU").
+    ts_root = instrument.tradestation_symbol.lstrip("@")
 
     if auth is None:
         auth = TradeStationAuth()

@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -125,7 +125,7 @@ def write_manifest(parquet_path: Path, manifest: dict[str, Any]) -> Path:
     Path of the written manifest file.
     """
     manifest = dict(manifest)
-    manifest.setdefault("built_at", datetime.now(tz=timezone.utc).isoformat())
+    manifest.setdefault("built_at", datetime.now(tz=UTC).isoformat())
     manifest.setdefault("code_commit", _current_commit())
     manifest.setdefault("schema_version", 1)
 
@@ -168,7 +168,7 @@ def build_raw_manifest(
     parquet_path:
         The RAW parquet being described.
     symbol:
-        Instrument symbol (e.g., ``"ZN"``, ``"TYH10"``).
+        Instrument symbol (e.g., ``"6E"``, ``"EUH25"``).
     raw_type:
         Category string: ``"contract"``, ``"bulk_download"``, or ``"smoke"``.
     description:
@@ -208,7 +208,7 @@ def build_clean_manifest(
     source_paths:
         The RAW source file(s) this was built from.
     symbol:
-        Instrument symbol (e.g., ``"ZN"``).
+        Instrument symbol (e.g., ``"6E"``).
     timeframe:
         Bar timeframe string (e.g., ``"5m"``, ``"1D"``).
     adjustment:
@@ -252,8 +252,14 @@ def build_features_manifest(
     feature_set_config: Path,
     indicators: list[dict[str, Any]],
     htf_projections: list[dict[str, Any]],
+    featureset_hash: str = "unknown",
 ) -> dict[str, Any]:
-    """Build a manifest dict for a FEATURES layer parquet."""
+    """Build a manifest dict for a FEATURES layer parquet.
+
+    ``featureset_hash`` is the 16-char hex digest from ``FeatureSet.compute_hash()``.
+    It links every backtest run to the exact feature-set version that produced
+    the parquet, enabling reproducibility tracking across code versions.
+    """
     row_count, date_range = _fast_parquet_stats(parquet_path)
 
     sources = []
@@ -277,6 +283,7 @@ def build_features_manifest(
         "date_range": date_range,
         "sources": sources,
         "feature_set_tag": feature_set_tag,
+        "featureset_hash": featureset_hash,
         "feature_set_config": str(feature_set_config),
         "indicators": indicators,
         "htf_projections": htf_projections,

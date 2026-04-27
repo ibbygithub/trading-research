@@ -3,7 +3,7 @@
 Usage:
     from trading_research.replay.app import build_app
 
-    app = build_app("ZN", from_dt, to_dt)
+    app = build_app("6E", from_dt, to_dt)
     app.run(debug=False, port=8050)
 
 The CLI (`uv run trading-research replay`) is the normal entry point.
@@ -33,7 +33,7 @@ def build_app(
 
     Parameters
     ----------
-    symbol:      Instrument symbol (e.g. "ZN").
+    symbol:      Instrument symbol (e.g. "6E").
     from_dt:     Window start (tz-naive interpreted as UTC).
     to_dt:       Window end.
     trades_path: Optional JSON trade log.  Placeholder — trade markers are
