@@ -1,0 +1,28 @@
+---
+name: forensics-app
+description: Launches and manages the interactive Dash/Plotly app for bar-by-bar trade replay and visual forensic audit.
+---
+
+# Goal
+Provide a visual "Truth Engine" that allows Ibby to audit backtest results, verify indicator signals, and replay trades in an interactive environment.
+
+# Instructions
+1. **App Initialization**:
+    - Load backtest JSON-line logs from `runs/` and the corresponding CLEAN or FEATURES parquets from `data/`.
+    - Ensure the app is launched via the `uv` environment: `uv run python -m trading_research.replay.app`.
+2. **Visual Audit Protocol**:
+    - **Replay Mode**: Enable step-through replay to see the state of indicators at the exact moment of the trade "trigger" vs. "entry".
+    - **Indicator Overlay**: Plot all relevant indicators (e.g., MACD, Bollinger Bands) from the FEATURES parquet to verify signal logic.
+3. **The Trio Review**:
+    - **Mentor**: Use the replay to identify "Chart Lies"—ensure the trade looks as viable in real-time as it did on a static chart.
+    - **Scientist**: Audit the visual representation of stop-loss and take-profit levels for accuracy against the backtest engine's logs.
+    - **Architect**: Ensure the app consumes only the standard JSON-line output schema and remains decoupled from the internal backtest engine logic.
+
+# Constraints
+- **Performance**: Large datasets must be downsampled for visual performance without losing the specific bars surrounding a trade event.
+- **No Manual Edits**: The app is for visualization and audit only; it must not provide a mechanism to "tweak" backtest results after the fact.
+- **Time Zones**: All X-axis timestamps must be displayed in `America/New_York` while maintaining UTC internally.
+
+# Examples
+- **User**: "I want to see the forensics on that losing ZN trade from yesterday."
+- **Agent**: (Locates log) -> (Starts Dash App) -> "Forensics app is live at http://127.0.0.1:8050. Mentor is ready to audit the entry signal.".
