@@ -153,6 +153,7 @@ $RECYCLE.BIN/
 *~
 .claude/local/
 .antigravity/
+.gemini/
 
 # -----------------------------------------------------------------------------
 # Binary / archive / bulk payloads that should never be in git
