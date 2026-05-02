@@ -47,6 +47,11 @@ class BacktestConfig:
     eod_flat: bool = True
     use_ofi_resolution: bool = False
     quantity: int = 1
+    # Cost overrides — when set, take precedence over instrument backtest_defaults.
+    # slippage_ticks is per-side, in ticks (fractional ticks allowed).
+    # commission_rt_usd is the full round-trip commission in USD.
+    slippage_ticks: float | None = None
+    commission_rt_usd: float | None = None
 
     def __post_init__(self) -> None:
         if self.fill_model == FillModel.SAME_BAR and not self.same_bar_justification.strip():
@@ -56,6 +61,10 @@ class BacktestConfig:
             )
         if self.quantity < 1:
             raise ValueError("quantity must be >= 1.")
+        if self.slippage_ticks is not None and self.slippage_ticks < 0:
+            raise ValueError("slippage_ticks override must be >= 0.")
+        if self.commission_rt_usd is not None and self.commission_rt_usd < 0:
+            raise ValueError("commission_rt_usd override must be >= 0.")
 
 
 @dataclass
@@ -82,8 +91,15 @@ class BacktestEngine:
         self._core_instrument = core_instrument
 
         bd = instrument.backtest_defaults
-        self._slippage_ticks = bd.slippage_ticks
-        self._commission_per_side = bd.commission_usd
+        # Config overrides take precedence over instrument backtest_defaults.
+        self._slippage_ticks = (
+            config.slippage_ticks if config.slippage_ticks is not None else float(bd.slippage_ticks)
+        )
+        self._commission_per_side = (
+            config.commission_rt_usd / 2.0
+            if config.commission_rt_usd is not None
+            else bd.commission_usd
+        )
         self._tick_size = instrument.tick_size
         self._tick_value = instrument.tick_value_usd
         self._point_value = instrument.point_value_usd

@@ -224,3 +224,102 @@ class TestNoCarryAcrossSessions:
         if len(result.trades) > 0:
             t = result.trades.iloc[0]
             assert t["exit_reason"] == "eod"
+
+
+# ---------------------------------------------------------------------------
+# BacktestConfig cost overrides
+# ---------------------------------------------------------------------------
+
+class TestCostOverrides:
+    """BacktestConfig.slippage_ticks and commission_rt_usd override instrument defaults."""
+
+    def test_slippage_ticks_override_applied(self):
+        prices = [110.0, 110.5, 111.5, 111.0, 110.0]
+        bars = _make_bars(5, prices)
+        sig_data = pd.DataFrame({
+            "signal": [1, 0, 0, 0, 0],
+            "stop": [109.5, float("nan"), float("nan"), float("nan"), float("nan")],
+            "target": [111.25, float("nan"), float("nan"), float("nan"), float("nan")],
+        }, index=bars.index)
+
+        # ZN instrument default is 1 tick; override to 2.
+        cfg_default = BacktestConfig(strategy_id="test", symbol="ZN", eod_flat=False)
+        cfg_override = BacktestConfig(
+            strategy_id="test", symbol="ZN", eod_flat=False, slippage_ticks=2.0
+        )
+
+        result_default = BacktestEngine(cfg_default, _inst()).run(bars, sig_data)
+        result_override = BacktestEngine(cfg_override, _inst()).run(bars, sig_data)
+
+        assert len(result_default.trades) == 1
+        assert len(result_override.trades) == 1
+        # Higher slippage → higher slippage_usd → lower net_pnl_usd.
+        assert result_override.trades.iloc[0]["net_pnl_usd"] < result_default.trades.iloc[0]["net_pnl_usd"]
+        # Slippage USD should be exactly double.
+        assert abs(
+            result_override.trades.iloc[0]["slippage_usd"]
+            - result_default.trades.iloc[0]["slippage_usd"] * 2
+        ) < 0.01
+
+    def test_commission_rt_usd_override_applied(self):
+        prices = [110.0, 110.5, 111.5, 111.0, 110.0]
+        bars = _make_bars(5, prices)
+        sig_data = pd.DataFrame({
+            "signal": [1, 0, 0, 0, 0],
+            "stop": [109.5, float("nan"), float("nan"), float("nan"), float("nan")],
+            "target": [111.25, float("nan"), float("nan"), float("nan"), float("nan")],
+        }, index=bars.index)
+
+        # ZN default commission_usd = $2/side → $4 RT.  Override to $10 RT.
+        cfg_override = BacktestConfig(
+            strategy_id="test", symbol="ZN", eod_flat=False, commission_rt_usd=10.0
+        )
+        result = BacktestEngine(cfg_override, _inst()).run(bars, sig_data)
+
+        assert len(result.trades) == 1
+        t = result.trades.iloc[0]
+        # commission_usd in trade = commission_per_side * 2 * qty = (10/2) * 2 * 1 = 10
+        assert abs(t["commission_usd"] - 10.0) < 0.01
+
+    def test_zero_commission_override(self):
+        prices = [110.0, 110.5, 111.5, 111.0, 110.0]
+        bars = _make_bars(5, prices)
+        sig_data = pd.DataFrame({
+            "signal": [1, 0, 0, 0, 0],
+            "stop": [109.5, float("nan"), float("nan"), float("nan"), float("nan")],
+            "target": [111.25, float("nan"), float("nan"), float("nan"), float("nan")],
+        }, index=bars.index)
+
+        cfg = BacktestConfig(
+            strategy_id="test", symbol="ZN", eod_flat=False, commission_rt_usd=0.0
+        )
+        result = BacktestEngine(cfg, _inst()).run(bars, sig_data)
+        assert len(result.trades) == 1
+        assert abs(result.trades.iloc[0]["commission_usd"]) < 0.01
+
+    def test_negative_slippage_rejected(self):
+        with pytest.raises(ValueError, match="slippage_ticks"):
+            BacktestConfig(strategy_id="test", symbol="ZN", slippage_ticks=-0.5)
+
+    def test_negative_commission_rejected(self):
+        with pytest.raises(ValueError, match="commission_rt_usd"):
+            BacktestConfig(strategy_id="test", symbol="ZN", commission_rt_usd=-1.0)
+
+    def test_fractional_slippage_ticks(self):
+        prices = [110.0, 110.5, 111.5, 111.0, 110.0]
+        bars = _make_bars(5, prices)
+        sig_data = pd.DataFrame({
+            "signal": [1, 0, 0, 0, 0],
+            "stop": [109.5, float("nan"), float("nan"), float("nan"), float("nan")],
+            "target": [111.25, float("nan"), float("nan"), float("nan"), float("nan")],
+        }, index=bars.index)
+
+        # Fractional tick (0.5 ticks) should work without error.
+        cfg = BacktestConfig(
+            strategy_id="test", symbol="ZN", eod_flat=False, slippage_ticks=0.5
+        )
+        result = BacktestEngine(cfg, _inst()).run(bars, sig_data)
+        assert len(result.trades) == 1
+        t = result.trades.iloc[0]
+        # slippage_usd = 0.5 ticks × $15.625/tick × 2 sides = $15.625
+        assert abs(t["slippage_usd"] - 15.625) < 0.01

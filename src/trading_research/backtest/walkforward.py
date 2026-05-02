@@ -73,6 +73,8 @@ def run_walkforward(
     embargo_bars: int = 50,
     data_root: Optional[Path] = None,
     trial_group: Optional[str] = None,
+    slippage_ticks: Optional[float] = None,
+    commission_rt_usd: Optional[float] = None,
 ) -> WalkforwardResult:
     # 1. Parse config
     cfg_raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -107,6 +109,8 @@ def run_walkforward(
         eod_flat=bt_cfg_raw.get("eod_flat", True),
         use_ofi_resolution=bt_cfg_raw.get("use_ofi_resolution", False),
         quantity=bt_cfg_raw.get("quantity", 1),
+        slippage_ticks=slippage_ticks,
+        commission_rt_usd=commission_rt_usd,
     )
 
     inst = load_instrument(symbol)
