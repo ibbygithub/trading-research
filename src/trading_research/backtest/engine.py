@@ -22,16 +22,21 @@ from __future__ import annotations
 
 import math
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import time
+from decimal import Decimal
 
 import pandas as pd
 import structlog
 
 from trading_research.backtest.fills import FillModel, apply_fill, resolve_exit
-from trading_research.core.strategies import PortfolioContext, Signal, Strategy
+from trading_research.core.strategies import PortfolioContext, Position, Signal, Strategy
 from trading_research.data.instruments import InstrumentSpec
-from trading_research.data.schema import TRADE_SCHEMA, Trade
+from trading_research.strategies.mulligan import (
+    MulliganController,
+    MulliganViolation,
+    combined_risk,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -110,6 +115,10 @@ class BacktestEngine:
         # Use a sentinel (None) when eod_flat is disabled so comparisons skip.
         self._session_close: time | None = rth_close if config.eod_flat else None
 
+        # Per-position Mulligan controller.  Created at entry; reset to None
+        # on exit.  The engine owns this — strategy code never holds a ref.
+        self._mulligan_ctrl: MulliganController | None = None
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -149,6 +158,14 @@ class BacktestEngine:
         mfe_high: float = float("-inf") # track best favourable high from entry
         position_qty: int = cfg.quantity  # per-trade quantity
 
+        # Mulligan (scale-in) state — reset on each entry.
+        orig_qty_for_first_leg: int = cfg.quantity
+        mulligan_active: bool = False
+        mulligan_entry_trigger_ts: pd.Timestamp | None = None
+        mulligan_entry_ts: pd.Timestamp | None = None
+        mulligan_entry_price: float = 0.0
+        mulligan_qty: int = 0
+
         bar_list = list(bars.itertuples())
         n = len(bar_list)
 
@@ -180,14 +197,20 @@ class BacktestEngine:
                     exit_trigger_ts = ts
                     exit_ts = ts
                     exit_price = self._exit_fill(bar_s, direction)
-                    trade = self._close_trade(
-                        direction, entry_trigger_ts, entry_ts, entry_price,
+                    self._emit_position_close(
+                        completed, direction,
+                        entry_trigger_ts, entry_ts, entry_price,
                         exit_trigger_ts, exit_ts, exit_price, exit_reason,
                         stop, target, mae_low, mfe_high,
-                        qty=position_qty,
+                        orig_qty=orig_qty_for_first_leg,
+                        mulligan_entry_trigger_ts=mulligan_entry_trigger_ts,
+                        mulligan_entry_ts=mulligan_entry_ts,
+                        mulligan_entry_price=mulligan_entry_price,
+                        mulligan_qty=mulligan_qty,
                     )
-                    completed.append(trade)
                     in_position = False
+                    mulligan_active = False
+                    self._mulligan_ctrl = None
                     continue
 
                 # Check TP/SL.
@@ -201,15 +224,57 @@ class BacktestEngine:
                     exit_trigger_ts = ts
                     exit_ts = ts
                     exit_price = resolved_price
-                    trade = self._close_trade(
-                        direction, entry_trigger_ts, entry_ts, entry_price,
+                    self._emit_position_close(
+                        completed, direction,
+                        entry_trigger_ts, entry_ts, entry_price,
                         exit_trigger_ts, exit_ts, exit_price, exit_reason,
                         stop, target, mae_low, mfe_high,
-                        qty=position_qty,
+                        orig_qty=orig_qty_for_first_leg,
+                        mulligan_entry_trigger_ts=mulligan_entry_trigger_ts,
+                        mulligan_entry_ts=mulligan_entry_ts,
+                        mulligan_entry_price=mulligan_entry_price,
+                        mulligan_qty=mulligan_qty,
                     )
-                    completed.append(trade)
                     in_position = False
+                    mulligan_active = False
+                    self._mulligan_ctrl = None
                     continue
+
+                # Consult Strategy.exit_rules (Protocol enforcement).
+                # Called only when EOD/time-limit/TP/SL have not triggered.
+                if self._strategy is not None and not mulligan_active:
+                    pos_obj = Position(
+                        instrument_symbol=cfg.symbol,
+                        entry_time=entry_ts.to_pydatetime(),  # type: ignore[union-attr]
+                        entry_price=Decimal(str(entry_price)),
+                        size=position_qty,
+                        direction="long" if direction == 1 else "short",
+                        stop=Decimal(str(stop)),
+                        target=Decimal(str(target)),
+                    )
+                    exit_dec = self._strategy.exit_rules(
+                        pos_obj, bar_s, self._core_instrument
+                    )
+                    if exit_dec.action == "scale_in":
+                        (
+                            position_qty, stop, target,
+                            mulligan_active,
+                            mulligan_entry_trigger_ts,
+                            mulligan_entry_ts,
+                            mulligan_entry_price,
+                            mulligan_qty,
+                        ) = self._try_mulligan(
+                            ts, i, bar_s, bars, signals, direction,
+                            pos_obj, position_qty, stop, target, n,
+                            mulligan_active,
+                            orig_qty_for_first_leg,
+                        )
+                    elif exit_dec.action not in ("hold", "scale_out"):
+                        log.warning(
+                            "engine.exit_rules_unhandled_action",
+                            action=exit_dec.action,
+                            reason=exit_dec.reason,
+                        )
 
                 # Check signal reversal / exit signal.
                 sig = int(signals.at[ts, "signal"]) if ts in signals.index else 0
@@ -218,20 +283,24 @@ class BacktestEngine:
                     exit_trigger_ts = ts
                     next_bar_s = bars.iloc[i + 1] if i + 1 < n else bar_s
                     exit_ts = next_bar_s.name
-                    exit_price = self._entry_fill(bar_s, next_bar_s, direction * -1)
-                    # Correction: use fill against current direction.
                     exit_price = apply_fill(
                         bar_s, next_bar_s, cfg.fill_model, -direction,
                         self._slippage_ticks, self._tick_size,
                     )
-                    trade = self._close_trade(
-                        direction, entry_trigger_ts, entry_ts, entry_price,
+                    self._emit_position_close(
+                        completed, direction,
+                        entry_trigger_ts, entry_ts, entry_price,
                         exit_trigger_ts, exit_ts, exit_price, "signal",
                         stop, target, mae_low, mfe_high,
-                        qty=position_qty,
+                        orig_qty=orig_qty_for_first_leg,
+                        mulligan_entry_trigger_ts=mulligan_entry_trigger_ts,
+                        mulligan_entry_ts=mulligan_entry_ts,
+                        mulligan_entry_price=mulligan_entry_price,
+                        mulligan_qty=mulligan_qty,
                     )
-                    completed.append(trade)
                     in_position = False
+                    mulligan_active = False
+                    self._mulligan_ctrl = None
                     # Fall through: we may immediately enter a new position
                     # on the same signal in the block below.
 
@@ -269,7 +338,6 @@ class BacktestEngine:
 
                     # Size the position via Strategy.size_position if available.
                     if self._strategy is not None:
-                        from decimal import Decimal
                         sig_obj = Signal(
                             timestamp=ts.to_pydatetime(),
                             direction="long" if entry_direction == 1 else "short",
@@ -303,6 +371,16 @@ class BacktestEngine:
                     mae_low = fill_price
                     mfe_high = fill_price
                     in_position = True
+                    # Reset Mulligan state for this new position.
+                    orig_qty_for_first_leg = position_qty
+                    mulligan_active = False
+                    mulligan_entry_trigger_ts = None
+                    mulligan_entry_ts = None
+                    mulligan_entry_price = 0.0
+                    mulligan_qty = 0
+                    self._mulligan_ctrl = self._make_mulligan_ctrl(
+                        ts, direction,
+                    )
 
         # ----------------------------------------------------------
         # 3. Force-close any still-open position at end of data.
@@ -310,13 +388,17 @@ class BacktestEngine:
         if in_position:
             last_bar_s = bars.iloc[-1]
             exit_price = float(last_bar_s["close"])
-            trade = self._close_trade(
-                direction, entry_trigger_ts, entry_ts, entry_price,
+            self._emit_position_close(
+                completed, direction,
+                entry_trigger_ts, entry_ts, entry_price,
                 bars.index[-1], bars.index[-1], exit_price, "eod",
                 stop, target, mae_low, mfe_high,
-                qty=position_qty,
+                orig_qty=orig_qty_for_first_leg,
+                mulligan_entry_trigger_ts=mulligan_entry_trigger_ts,
+                mulligan_entry_ts=mulligan_entry_ts,
+                mulligan_entry_price=mulligan_entry_price,
+                mulligan_qty=mulligan_qty,
             )
-            completed.append(trade)
 
         trades_df = self._to_dataframe(completed)
         equity_curve = self._build_equity_curve(trades_df)
@@ -438,7 +520,6 @@ class BacktestEngine:
     @staticmethod
     def _to_dataframe(records: list[dict]) -> pd.DataFrame:
         if not records:
-            import pyarrow as pa
             from trading_research.data.schema import TRADE_SCHEMA
             return TRADE_SCHEMA.empty_table().to_pandas()  # type: ignore[attr-defined]
 
@@ -454,3 +535,210 @@ class BacktestEngine:
         curve = trades_df.set_index("exit_ts")["net_pnl_usd"].sort_index().cumsum()
         curve.name = "equity_usd"
         return curve
+
+    # ------------------------------------------------------------------
+    # Mulligan helpers
+    # ------------------------------------------------------------------
+
+    def _make_mulligan_ctrl(
+        self,
+        entry_trigger_ts: pd.Timestamp,
+        direction: int,
+    ) -> MulliganController | None:
+        """Create a MulliganController for a new position if strategy has mulligan_enabled."""
+        if self._strategy is None:
+            return None
+        if not self._strategy.knobs.get("mulligan_enabled", False):
+            return None
+        max_scale_ins = int(self._strategy.knobs.get("mulligan_max_scale_ins", 1))
+        return MulliganController(
+            entry_trigger_ts=entry_trigger_ts.to_pydatetime(),
+            direction="long" if direction == 1 else "short",
+            max_scale_ins=max_scale_ins,
+        )
+
+    def _try_mulligan(
+        self,
+        ts: pd.Timestamp,
+        bar_idx: int,
+        bar_s: pd.Series,
+        bars: pd.DataFrame,
+        signals: pd.DataFrame,
+        direction: int,
+        pos_obj: Position,
+        position_qty: int,
+        stop: float,
+        target: float,
+        n: int,
+        mulligan_active: bool,
+        orig_qty_for_first_leg: int,
+    ) -> tuple:
+        """Attempt a Mulligan scale-in.  Returns updated position state.
+
+        Returns (position_qty, stop, target,
+                 mulligan_active,
+                 mulligan_entry_trigger_ts, mulligan_entry_ts,
+                 mulligan_entry_price, mulligan_qty).
+        """
+        if self._mulligan_ctrl is None or mulligan_active:
+            log.warning(
+                "engine.mulligan_skipped",
+                reason="no controller or already scaled in",
+                ts=str(ts),
+            )
+            return (
+                position_qty, stop, target,
+                mulligan_active, None, None, 0.0, 0,
+            )
+
+        # Find a same-direction signal at this bar.
+        sig_val = int(signals.at[ts, "signal"]) if ts in signals.index else 0
+        if sig_val != direction:
+            log.warning(
+                "engine.mulligan_violation",
+                rule="M-1",
+                reason="scale_in requested by exit_rules but no same-direction "
+                       "signal in signals_df at current bar",
+                ts=str(ts),
+            )
+            return (
+                position_qty, stop, target,
+                mulligan_active, None, None, 0.0, 0,
+            )
+
+        candidate_signal = Signal(
+            timestamp=ts.to_pydatetime(),
+            direction="long" if direction == 1 else "short",
+            strength=1.0,
+            metadata={
+                "stop": float(signals.at[ts, "stop"]) if "stop" in signals.columns else float("nan"),
+                "target": float(signals.at[ts, "target"]) if "target" in signals.columns else float("nan"),
+            },
+        )
+
+        atr = float(bar_s.get("atr_14", 0.0)) if hasattr(bar_s, "get") else 0.0
+        n_atr = float(self._strategy.knobs.get("mulligan_n_atr", 0.3))  # type: ignore[union-attr]
+        mulligan_target_atr = float(self._strategy.knobs.get("mulligan_target_atr", 0.3))  # type: ignore[union-attr]
+
+        # Determine fill price (next bar open).
+        if bar_idx + 1 >= n:
+            log.warning("engine.mulligan_no_next_bar", ts=str(ts))
+            return (
+                position_qty, stop, target,
+                mulligan_active, None, None, 0.0, 0,
+            )
+        next_bar_s = bars.iloc[bar_idx + 1]
+        fill_price = apply_fill(
+            bar_s, next_bar_s, self._cfg.fill_model, direction,
+            self._slippage_ticks, self._tick_size,
+        )
+        new_entry_price_dec = Decimal(str(fill_price))
+
+        # Rule M-3: compute combined risk BEFORE the second entry is placed.
+        scale_in_size = int(self._cfg.quantity)
+        cr = combined_risk(
+            orig=pos_obj,
+            new_entry_price=new_entry_price_dec,
+            scale_in_size=scale_in_size,
+            atr=atr,
+            mulligan_target_atr=mulligan_target_atr,
+        )
+
+        # Log combined dollar risk (informational — not a hard block).
+        log.info(
+            "engine.mulligan_combined_risk",
+            combined_size=cr.combined_size,
+            combined_stop=str(cr.combined_stop),
+            combined_target=str(cr.combined_target),
+            ts=str(ts),
+        )
+
+        # Rules M-1 and M-2 check.
+        try:
+            self._mulligan_ctrl.check_scale_in(
+                candidate_signal,
+                pos_obj,
+                new_entry_price_dec,
+                atr,
+                n_atr,
+            )
+        except MulliganViolation as exc:
+            log.warning(
+                "engine.mulligan_violation",
+                reason=str(exc),
+                ts=str(ts),
+            )
+            return (
+                position_qty, stop, target,
+                mulligan_active, None, None, 0.0, 0,
+            )
+
+        # Scale-in accepted — update position state.
+        new_stop = float(cr.combined_stop)
+        new_target = float(cr.combined_target)
+        new_qty = orig_qty_for_first_leg + scale_in_size
+
+        log.info(
+            "engine.mulligan_scale_in_executed",
+            orig_qty=orig_qty_for_first_leg,
+            scale_in_qty=scale_in_size,
+            combined_qty=new_qty,
+            fill_price=fill_price,
+            new_stop=new_stop,
+            new_target=new_target,
+            ts=str(ts),
+        )
+
+        return (
+            new_qty,
+            new_stop,
+            new_target,
+            True,  # mulligan_active
+            ts,                    # mulligan_entry_trigger_ts
+            next_bar_s.name,       # mulligan_entry_ts
+            fill_price,            # mulligan_entry_price
+            scale_in_size,         # mulligan_qty
+        )
+
+    def _emit_position_close(
+        self,
+        completed: list[dict],
+        direction: int,
+        entry_trigger_ts: pd.Timestamp,
+        entry_ts: pd.Timestamp,
+        entry_price: float,
+        exit_trigger_ts: pd.Timestamp,
+        exit_ts: pd.Timestamp,
+        exit_price: float,
+        exit_reason: str,
+        stop: float,
+        target: float,
+        mae_low: float,
+        mfe_high: float,
+        orig_qty: int,
+        mulligan_entry_trigger_ts: pd.Timestamp | None = None,
+        mulligan_entry_ts: pd.Timestamp | None = None,
+        mulligan_entry_price: float = 0.0,
+        mulligan_qty: int = 0,
+    ) -> None:
+        """Append one or two trade records to ``completed``.
+
+        Always appends the original leg.  Appends a second record for the
+        Mulligan leg when ``mulligan_qty > 0``.
+        """
+        completed.append(self._close_trade(
+            direction, entry_trigger_ts, entry_ts, entry_price,
+            exit_trigger_ts, exit_ts, exit_price, exit_reason,
+            stop, target, mae_low, mfe_high,
+            qty=orig_qty,
+        ))
+        if mulligan_qty > 0 and mulligan_entry_ts is not None:
+            completed.append(self._close_trade(
+                direction,
+                mulligan_entry_trigger_ts,
+                mulligan_entry_ts,
+                mulligan_entry_price,
+                exit_trigger_ts, exit_ts, exit_price, exit_reason,
+                stop, target, mae_low, mfe_high,
+                qty=mulligan_qty,
+            ))

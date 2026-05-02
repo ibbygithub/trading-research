@@ -49,6 +49,14 @@ class VWAPReversionV1Knobs(BaseModel):
     # Knob passed through to VolatilityRegimeFilter when "volatility-regime"
     # is included in regime_filters.
     vol_percentile_threshold: float = Field(75.0, ge=50.0, le=95.0)
+    # Mulligan scale-in knobs (session 32).
+    # mulligan_n_atr: gate width — scale-in rejected if more than n_atr×ATR
+    #   worse than original entry.  Sweep {0.3, 0.5, 1.0, 1.5} in session 33.
+    # mulligan_target_atr: combined target as ATR multiples from avg entry.
+    mulligan_enabled: bool = False
+    mulligan_n_atr: float = Field(0.3, ge=0.0, le=5.0)
+    mulligan_max_scale_ins: int = Field(1, ge=1, le=3)
+    mulligan_target_atr: float = Field(0.3, ge=0.0, le=3.0)
 
 
 @register_template(
