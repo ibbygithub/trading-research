@@ -308,6 +308,46 @@ uv run trading-research stationarity --symbol ZN   # ZN classifications IDENTICA
 - [ ] Work log per CLAUDE.md convention.
 - [ ] Branch `session-29-strategy-foundation`; no merge to `develop` without architect + data-scientist signoff.
 
+## Decision Ratifications (29a)
+
+**Ratified:** 2026-05-01, session 29a execution
+
+### 29-D1 — Walkforward / Registry coupling: RATIFIED as Option A staged
+
+Rationale: The existing `signal_module:` path in walkforward.py works for ZN and
+must continue to work untouched. Adding `template:` as a parallel path lets us
+adopt TemplateRegistry for new strategies (starting with 6E) without breaking
+any existing ZN config or test. The staging plan (29b → 30 → F1/F2 → 38) provides
+a clean migration runway. The `signal_module:` fallback remains until sprint 38.
+
+### 29-D2 — OU bounds location: RATIFIED as per-instrument field
+
+Rationale: OU tradeable half-life bounds are instrument-specific — ZN and 6E have
+fundamentally different reversion speeds due to different market microstructure
+(rate-event-driven vs. rate-differential-driven). Storing bounds in
+`Instrument.tradeable_ou_bounds_bars` as `dict[str, tuple[float, float]]` keeps
+the single-source-of-truth principle: the instrument registry already owns tick
+size, session hours, and margin — OU bounds belong there too. The class-level
+default on the Instrument model preserves current ZN behaviour for any instrument
+that does not explicitly declare bounds.
+
+### 29-D3 — Naming convention: RATIFIED as specified
+
+Rationale: Templates use `<strategy-class>-v<N>` (kebab-case). Instances use
+`<template>-<instrument>-<config-hash-short>`. The blake2b short hash (6 hex
+chars) ensures uniqueness across knob configurations without manual naming.
+Existing ZN modules become `zn-vwap-reversion-v0` and `zn-macd-pullback-v0` on
+retrofit (sprints F1/F2), preserving the version history.
+
+### 29-D4 — Mulligan freshness invariant: RATIFIED as specified
+
+Rationale: The docstring is now committed on the `Strategy.exit_rules` method.
+Contract tests enforcing the invariant at the engine level will land in sprint 32.
+The invariant prevents the most dangerous failure mode in mean-reversion
+strategies: averaging down disguised as a scale-in.
+
+---
+
 ## References
 
 - `outputs/planning/sprints-29-38-plan-v2.md` — overall plan

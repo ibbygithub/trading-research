@@ -1,0 +1,30 @@
+# 6E VWAP Mean Reversion v1 — Template-based strategy
+#
+# Hypothesis: 6E VWAP spread is stationary (ADF p ≈ 0) with OU half-life
+# ~165 min. Price pushed beyond entry_threshold_atr × ATR from session VWAP
+# during the London/NY overlap reverts within the hold window.
+#
+# Session 29: first template-based strategy config in the project.
+# Uses TemplateRegistry instead of signal_module.
+
+strategy_id: vwap-reversion-v1-6E
+template: vwap-reversion-v1
+symbol: 6E
+timeframe: 5m
+feature_set: base-v1
+
+knobs:
+  entry_threshold_atr: 2.2
+  exit_target_atr: 0.3
+  stop_loss_atr: 2.5
+  max_hold_bars: 60
+  entry_window_start_utc: "12:00:00"
+  entry_window_end_utc: "17:00:00"
+  entry_blackout_minutes_after_session_open: 60
+  flatten_offset_minutes_before_settlement: 0
+  blackout_minutes_before_release: 30
+
+backtest:
+  fill_model: next_bar_open
+  start_date: "2018-01-01"
+  end_date: "2024-12-31"

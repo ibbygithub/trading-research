@@ -162,5 +162,19 @@ class Strategy(Protocol):
         ``current_bar`` is a row from the features DataFrame — it includes
         pre-computed ATR, VWAP, and any other indicator the strategy needs
         for trailing stops or dynamic exits.
+
+        Mulligan freshness invariant
+        ----------------------------
+        When ``exit_rules`` returns ``ExitDecision(action="scale_in", ...)``,
+        the engine requires that a *new* ``Signal`` was emitted by
+        ``generate_signals`` for the position's direction at a strictly later
+        timestamp than the original entry's trigger signal.  Returning
+        ``scale_in`` without a fresh emission is a Protocol violation and the
+        engine will reject the action with a ``MulliganViolation`` exception.
+
+        This rule exists to prevent adverse-P&L "averaging-down" from being
+        implemented as a Mulligan re-entry.  A legitimate scale-in must be
+        triggered by new confirming information, not by the position's
+        unrealised loss.
         """
         ...
