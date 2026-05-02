@@ -29,6 +29,7 @@ import pandas as pd
 import structlog
 
 from trading_research.backtest.fills import FillModel, apply_fill, resolve_exit
+from trading_research.core.strategies import PortfolioContext, Signal, Strategy
 from trading_research.data.instruments import InstrumentSpec
 from trading_research.data.schema import TRADE_SCHEMA, Trade
 
@@ -68,9 +69,17 @@ class BacktestResult:
 class BacktestEngine:
     """Run a strategy signal DataFrame through the bar data and produce a trade log."""
 
-    def __init__(self, config: BacktestConfig, instrument: InstrumentSpec) -> None:
+    def __init__(
+        self,
+        config: BacktestConfig,
+        instrument: InstrumentSpec,
+        strategy: Strategy | None = None,
+        core_instrument: object | None = None,
+    ) -> None:
         self._cfg = config
         self._inst = instrument
+        self._strategy = strategy
+        self._core_instrument = core_instrument
 
         bd = instrument.backtest_defaults
         self._slippage_ticks = bd.slippage_ticks
@@ -122,6 +131,7 @@ class BacktestEngine:
         bars_held: int = 0
         mae_low: float = float("inf")   # track worst adverse low from entry
         mfe_high: float = float("-inf") # track best favourable high from entry
+        position_qty: int = cfg.quantity  # per-trade quantity
 
         bar_list = list(bars.itertuples())
         n = len(bar_list)
@@ -158,6 +168,7 @@ class BacktestEngine:
                         direction, entry_trigger_ts, entry_ts, entry_price,
                         exit_trigger_ts, exit_ts, exit_price, exit_reason,
                         stop, target, mae_low, mfe_high,
+                        qty=position_qty,
                     )
                     completed.append(trade)
                     in_position = False
@@ -178,6 +189,7 @@ class BacktestEngine:
                         direction, entry_trigger_ts, entry_ts, entry_price,
                         exit_trigger_ts, exit_ts, exit_price, exit_reason,
                         stop, target, mae_low, mfe_high,
+                        qty=position_qty,
                     )
                     completed.append(trade)
                     in_position = False
@@ -200,6 +212,7 @@ class BacktestEngine:
                         direction, entry_trigger_ts, entry_ts, entry_price,
                         exit_trigger_ts, exit_ts, exit_price, "signal",
                         stop, target, mae_low, mfe_high,
+                        qty=position_qty,
                     )
                     completed.append(trade)
                     in_position = False
@@ -237,6 +250,39 @@ class BacktestEngine:
                         continue
 
                     target = self._get_level(signals, ts, "target")
+
+                    # Size the position via Strategy.size_position if available.
+                    if self._strategy is not None:
+                        from decimal import Decimal
+                        sig_obj = Signal(
+                            timestamp=ts.to_pydatetime(),
+                            direction="long" if entry_direction == 1 else "short",
+                            strength=float(signals.at[ts, "signal_strength"])
+                                if "signal_strength" in signals.columns
+                                else 1.0,
+                            metadata={
+                                "stop": stop,
+                                "target": target,
+                            },
+                        )
+                        ctx = PortfolioContext(
+                            open_positions=[],
+                            account_equity=Decimal("25000"),
+                            daily_pnl=Decimal("0"),
+                        )
+                        position_qty = self._strategy.size_position(
+                            sig_obj, ctx, self._core_instrument,
+                        )
+                        if position_qty == 0:
+                            log.info(
+                                "engine.trade_suppressed",
+                                reason="size_position returned 0",
+                                ts=str(ts),
+                            )
+                            continue
+                    else:
+                        position_qty = cfg.quantity
+
                     bars_held = 0
                     mae_low = fill_price
                     mfe_high = fill_price
@@ -252,6 +298,7 @@ class BacktestEngine:
                 direction, entry_trigger_ts, entry_ts, entry_price,
                 bars.index[-1], bars.index[-1], exit_price, "eod",
                 stop, target, mae_low, mfe_high,
+                qty=position_qty,
             )
             completed.append(trade)
 
@@ -328,9 +375,10 @@ class BacktestEngine:
         initial_target: float,
         mae_low: float,
         mfe_high: float,
+        qty: int | None = None,
     ) -> dict:
         cfg = self._cfg
-        qty = cfg.quantity
+        qty = qty if qty is not None else cfg.quantity
 
         pnl_points = direction * (exit_price - entry_price)
         pnl_usd = pnl_points * self._point_value * qty

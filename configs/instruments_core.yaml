@@ -34,6 +34,11 @@ instruments:
     rth_close_et: "15:00"
     calendar_name: "CBOT_Bond"
     roll_method: "panama"
+    # OU tradeable half-life bounds — original ZN calibration (session 26).
+    tradeable_ou_bounds_bars:
+      1m: [5.0, 60.0]
+      5m: [3.0, 24.0]
+      15m: [2.0, 8.0]
 
   6E:
     symbol: 6E
@@ -59,6 +64,13 @@ instruments:
     rth_close_et: "17:00"
     calendar_name: "CMEGlobex_FX"
     roll_method: "panama"
+    # OU tradeable half-life bounds — FX-calibrated (session 28 analysis).
+    # 6E VWAP spread has OU half-life ~33 bars at 5m (~165 min).
+    # Wider bounds than ZN to accommodate longer FX reversion dynamics.
+    tradeable_ou_bounds_bars:
+      1m: [10.0, 240.0]
+      5m: [10.0, 80.0]
+      15m: [4.0, 30.0]
 
   6A:
     symbol: 6A

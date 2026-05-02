@@ -149,12 +149,23 @@ def _interpret_hurst(h: float) -> str:
     return "TRENDING (strong)"
 
 
-def _interpret_ou(half_life: float, timeframe: str) -> str:
+def _interpret_ou(
+    half_life: float,
+    timeframe: str,
+    instrument: Any | None = None,
+) -> str:
     if math.isinf(half_life) or math.isnan(half_life):
         return "TRENDING" if half_life > 0 else "RANDOM_WALK"
-    bounds = _OU_TRADEABLE.get(timeframe)
+
+    # Prefer per-instrument bounds from the Instrument registry (session 29).
+    bounds: tuple[float, float] | None = None
+    if instrument is not None and hasattr(instrument, "get_ou_bounds"):
+        bounds = instrument.get_ou_bounds(timeframe)
+    if bounds is None:
+        bounds = _OU_TRADEABLE.get(timeframe)
     if bounds is None:
         return "UNKNOWN_TIMEFRAME"
+
     lo, hi = bounds
     if half_life < lo:
         return "TOO_FAST"
@@ -168,6 +179,7 @@ def _composite_classification(
     hurst: HurstResult,
     ou: OUResult,
     timeframe: str,
+    instrument: Any | None = None,
 ) -> str:
     """Derive the per-series composite label per design doc §4.4.
 
@@ -184,7 +196,7 @@ def _composite_classification(
     adf_pass = adf.p_value < _ADF_WEAK
     h = hurst.exponent
     hurst_trending = not math.isnan(h) and h > _HURST_RW_HIGH
-    ou_interp = _interpret_ou(ou.half_life_bars, timeframe)
+    ou_interp = _interpret_ou(ou.half_life_bars, timeframe, instrument=instrument)
 
     if not adf_pass:
         return "NON_STATIONARY"
@@ -640,7 +652,7 @@ def run_stationarity_suite(
 
             hurst = hurst_exponent(s)
             ou = ou_half_life(s)
-            comp = _composite_classification(adf, hurst, ou, tf)
+            comp = _composite_classification(adf, hurst, ou, tf, instrument=instrument)
             composite[series_name] = comp
 
             # ADF row
@@ -685,7 +697,7 @@ def run_stationarity_suite(
                 "p_value": float("nan"),
                 "n_lags": float("nan"),
                 "n_obs": len(s),
-                "interpretation": _interpret_ou(ou.half_life_bars, tf),
+                "interpretation": _interpret_ou(ou.half_life_bars, tf, instrument=instrument),
                 "composite": comp,
                 "run_ts": now_utc,
                 "code_version": code_version,
