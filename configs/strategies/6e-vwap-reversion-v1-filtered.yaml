@@ -1,0 +1,22 @@
+backtest:
+  end_date: '2024-12-31'
+  fill_model: next_bar_open
+  start_date: '2018-01-01'
+feature_set: base-v1
+knobs:
+  blackout_minutes_before_release: 30
+  entry_blackout_minutes_after_session_open: 60
+  entry_threshold_atr: 2.2
+  entry_window_end_utc: '17:00:00'
+  entry_window_start_utc: '12:00:00'
+  exit_target_atr: 0.3
+  flatten_offset_minutes_before_settlement: 0
+  max_hold_bars: 60
+  regime_filters:
+  - volatility-regime
+  stop_loss_atr: 2.5
+  vol_percentile_threshold: 75.0
+strategy_id: vwap-reversion-v1-6E-filtered
+symbol: 6E
+template: vwap-reversion-v1
+timeframe: 5m

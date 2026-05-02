@@ -7,12 +7,12 @@ window.  Vol-targeting position sizing.  Exits via target band, stop,
 max hold, or hard session flatten.
 
 Session 29: first template-registered strategy in the project.
+Session 31: regime filter layer added via ``regime_filters`` knob.
 """
 
 from __future__ import annotations
 
 from datetime import time
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -26,6 +26,7 @@ from trading_research.core.strategies import (
     Signal,
 )
 from trading_research.core.templates import register_template
+from trading_research.strategies.regime import RegimeFilterChain, build_filter
 
 if TYPE_CHECKING:
     from trading_research.core.instruments import Instrument
@@ -42,6 +43,12 @@ class VWAPReversionV1Knobs(BaseModel):
     flatten_offset_minutes_before_settlement: int = Field(0, ge=0, le=60)
     blackout_minutes_before_release: int = Field(30, ge=0, le=120)
     feature_set: str = "base-v1"
+    # Regime filter names to chain (AND-of-filters). Empty = no filter.
+    # Supported: "volatility-regime"
+    regime_filters: list[str] = Field(default_factory=list)
+    # Knob passed through to VolatilityRegimeFilter when "volatility-regime"
+    # is included in regime_filters.
+    vol_percentile_threshold: float = Field(75.0, ge=50.0, le=95.0)
 
 
 @register_template(
@@ -55,6 +62,18 @@ class VWAPReversionV1:
     def __init__(self, *, knobs: VWAPReversionV1Knobs, template_name: str) -> None:
         self._knobs = knobs
         self._template_name = template_name
+        # Build regime filter chain from knobs. Filters must be fit before
+        # generate_signals is called (see fit_filters()).
+        if knobs.regime_filters:
+            filter_kwargs: dict[str, object] = {}
+            if "volatility-regime" in knobs.regime_filters:
+                filter_kwargs["vol_percentile_threshold"] = knobs.vol_percentile_threshold
+            self._filter_chain: RegimeFilterChain | None = RegimeFilterChain([
+                build_filter(name, **filter_kwargs if name == "volatility-regime" else {})
+                for name in knobs.regime_filters
+            ])
+        else:
+            self._filter_chain = None
 
     @property
     def name(self) -> str:
@@ -67,6 +86,18 @@ class VWAPReversionV1:
     @property
     def knobs(self) -> dict:
         return self._knobs.model_dump()
+
+    def fit_filters(self, train_features: pd.DataFrame) -> None:
+        """Fit regime filters on *train_features* (training window only).
+
+        Must be called before ``generate_signals()`` when ``regime_filters``
+        is non-empty.  In rolling walk-forward, call once per fold with the
+        training window before evaluating the test window.
+
+        No-op when no regime filters are configured.
+        """
+        if self._filter_chain is not None:
+            self._filter_chain.fit(train_features)
 
     def generate_signals(
         self,
@@ -116,6 +147,9 @@ class VWAPReversionV1:
             if not in_window[i] or not past_blackout[i]:
                 continue
             if not np.isfinite(spread_over_atr[i]) or not np.isfinite(atr[i]) or atr[i] <= 0:
+                continue
+            # Regime filter: short-circuit when any filter rejects this bar.
+            if self._filter_chain is not None and not self._filter_chain.is_tradeable(features, i):
                 continue
 
             ts = idx[i]
@@ -172,8 +206,6 @@ class VWAPReversionV1:
         tick_size = float(instrument.tick_size)
         tick_value = float(instrument.tick_value_usd)
         point_value = tick_value / tick_size
-        risk_per_contract = abs(float(stop_price) - float(target_price))
-        stop_distance = abs(float(signal.metadata.get("stop", 0)))
 
         estimated_entry = float(stop_price) + risk_points if signal.direction == "long" else float(stop_price) - risk_points
         stop_risk = abs(estimated_entry - float(stop_price)) * point_value

@@ -143,6 +143,26 @@
       "strategy_id": "vwap-reversion-v1-6E-s0.5-o0.5-c0.00",
       "timestamp": "2026-05-02T05:50:48.287476+00:00",
       "trial_group": "v1-cost-sweep"
+    },
+    {
+      "timestamp": "2026-05-02T18:12:55.030427+00:00",
+      "strategy_id": "vwap-reversion-v1-6E-wf-baseline",
+      "config_hash": "39ea48ba",
+      "sharpe": -3.233115459842441,
+      "trial_group": "session-31b",
+      "code_version": "41efe0a",
+      "featureset_hash": null,
+      "cohort_label": "41efe0a"
+    },
+    {
+      "timestamp": "2026-05-02T18:12:55.037557+00:00",
+      "strategy_id": "vwap-reversion-v1-6E-wf-filtered",
+      "config_hash": "347bead4",
+      "sharpe": -3.9723291457003693,
+      "trial_group": "session-31b",
+      "code_version": "41efe0a",
+      "featureset_hash": null,
+      "cohort_label": "41efe0a"
     }
   ]
 }
