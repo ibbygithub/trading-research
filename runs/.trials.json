@@ -163,6 +163,26 @@
       "code_version": "41efe0a",
       "featureset_hash": null,
       "cohort_label": "41efe0a"
+    },
+    {
+      "timestamp": "2026-05-03T00:41:56.035290+00:00",
+      "strategy_id": "vwap-reversion-v1-6E-v2-realistic",
+      "config_hash": "39775fe4",
+      "sharpe": -15.190724238624803,
+      "trial_group": "session-33a",
+      "code_version": "241bb05",
+      "featureset_hash": "253b884e3ca304fe",
+      "cohort_label": "241bb05"
+    },
+    {
+      "timestamp": "2026-05-03T00:41:56.042181+00:00",
+      "strategy_id": "vwap-reversion-v1-6E-v2-pessimistic",
+      "config_hash": "afce36fb",
+      "sharpe": -17.44704073921939,
+      "trial_group": "session-33a",
+      "code_version": "241bb05",
+      "featureset_hash": "253b884e3ca304fe",
+      "cohort_label": "241bb05"
     }
   ]
 }

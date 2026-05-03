@@ -416,7 +416,7 @@ def run_rolling_walkforward(
         sf = SignalFrame(signals_df)
         sf.validate()
 
-        engine = BacktestEngine(bt_config, inst)
+        engine = BacktestEngine(bt_config, inst, strategy=strategy, core_instrument=core_inst)
         res = engine.run(test_bars, signals_df)
 
         sm = compute_summary(res)
