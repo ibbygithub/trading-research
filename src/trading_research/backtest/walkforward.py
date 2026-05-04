@@ -83,20 +83,24 @@ def run_walkforward(
     bt_cfg_raw = cfg_raw.get("backtest", {})
     feature_set = cfg_raw.get("feature_set", "base-v1")
 
+    has_entry = "entry" in cfg_raw
     template_name = cfg_raw.get("template")
     signal_module_path = cfg_raw.get("signal_module")
 
-    if template_name and signal_module_path:
+    dispatch_count = sum([has_entry, bool(template_name), bool(signal_module_path)])
+    if dispatch_count > 1:
         raise ValueError(
-            f"Config {config_path} has both 'template' and 'signal_module'. "
-            "Use one or the other."
+            f"Config {config_path} has more than one of 'entry', 'template', "
+            "'signal_module'. Use exactly one."
         )
-    if not template_name and not signal_module_path:
+    if dispatch_count == 0:
         raise ValueError(
-            f"Config {config_path} must have either 'template' or 'signal_module'."
+            f"Config {config_path} must have one of 'entry' (YAML template), "
+            "'template' (registered template), or 'signal_module' (Python module)."
         )
 
-    use_template = template_name is not None
+    use_yaml_template = has_entry
+    use_template = bool(template_name)
 
     fill_model = FillModel(bt_cfg_raw.get("fill_model", "next_bar_open"))
     bt_config = BacktestConfig(
@@ -131,7 +135,16 @@ def run_walkforward(
         bars = bars[bars.index <= pd.Timestamp(end_date, tz="UTC")]
 
     # 3. Generate signals for the entire dataset
-    if use_template:
+    if use_yaml_template:
+        from trading_research.strategies.template import YAMLStrategy
+        strategy = YAMLStrategy.from_config(cfg_raw)
+        signals_df = strategy.generate_signals_df(bars)
+        log.info(
+            "walkforward.yaml_template_signals",
+            strategy_id=strategy_id,
+            n_signals=int((signals_df["signal"] != 0).sum()),
+        )
+    elif use_template:
         from trading_research.core.instruments import InstrumentRegistry
         from trading_research.core.templates import _GLOBAL_REGISTRY
 

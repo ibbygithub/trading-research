@@ -408,11 +408,25 @@ def backtest(
 ) -> None:
     """Run a backtest from a strategy YAML config.
 
+    Supports three config formats (auto-detected):
+
+    1. YAML template (session 36+): config has an ``entry:`` block with
+       declarative conditions — no Python module required.
+       Example: configs/strategies/6a-vwap-reversion-adx-yaml-v1.yaml
+
+    2. Registered template: config has a ``template:`` key pointing to a
+       name in the StrategyTemplate registry.
+       Example: configs/strategies/6e-vwap-reversion-v1.yaml
+
+    3. Python module (legacy): config has a ``signal_module:`` key pointing
+       to an importable module with a ``generate_signals`` function.
+       Example: configs/strategies/6a-vwap-reversion-adx-v1.yaml
+
     Writes trades.parquet, equity_curve.parquet, and summary.json to
     runs/<strategy_id>/<YYYY-MM-DD-HH-MM>/ and prints a summary table.
 
     Example:
-        uv run trading-research backtest --strategy configs/strategies/example.yaml
+        uv run trading-research backtest --strategy configs/strategies/6a-vwap-reversion-adx-yaml-v1.yaml
     """
     import importlib
     import json
@@ -438,7 +452,26 @@ def backtest(
     strategy_id = cfg_raw["strategy_id"]
     symbol = cfg_raw["symbol"]
     timeframe = cfg_raw.get("timeframe", "5m")
-    signal_module_path = cfg_raw["signal_module"]
+
+    # Detect dispatch path — mutually exclusive.
+    has_entry = "entry" in cfg_raw
+    template_name = cfg_raw.get("template")
+    signal_module_path = cfg_raw.get("signal_module")
+    dispatch_count = sum([has_entry, bool(template_name), bool(signal_module_path)])
+    if dispatch_count == 0:
+        typer.echo(
+            "ERROR: config must have one of 'entry' (YAML template), "
+            "'template' (registered template), or 'signal_module' (Python module).",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    if dispatch_count > 1:
+        typer.echo(
+            "ERROR: config may have only one of 'entry', 'template', or 'signal_module'.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
     bt_cfg_raw = cfg_raw.get("backtest", {})
 
     fill_model_str = bt_cfg_raw.get("fill_model", "next_bar_open")
@@ -501,18 +534,74 @@ def backtest(
 
     typer.echo(f"Bars: {len(bars):,}  ({bars.index[0].date()} to {bars.index[-1].date()})")
 
-    # --- Generate signals ---
-    try:
-        mod = importlib.import_module(signal_module_path)
-    except ImportError as e:
-        typer.echo(f"ERROR: cannot import signal_module '{signal_module_path}': {e}", err=True)
-        raise typer.Exit(code=2)
+    # --- Generate signals (dispatch by config type) ---
+    strategy_obj = None  # optional Strategy Protocol object for the engine
 
-    signal_params = cfg_raw.get("signal_params", {})
-    if signal_params:
-        signals_df = mod.generate_signals(bars, **signal_params)
+    if has_entry:
+        # YAML template: declarative entry/exit conditions, no Python required.
+        from trading_research.strategies.template import YAMLStrategy
+        try:
+            yaml_strat = YAMLStrategy.from_config(cfg_raw)
+        except (ValueError, KeyError) as e:
+            typer.echo(f"ERROR: invalid YAML template config — {e}", err=True)
+            raise typer.Exit(code=2)
+        try:
+            signals_df = yaml_strat.generate_signals_df(bars)
+        except (ValueError, KeyError) as e:
+            typer.echo(f"ERROR: YAML strategy signal generation failed — {e}", err=True)
+            raise typer.Exit(code=2)
+        strategy_obj = yaml_strat
+
+    elif template_name:
+        # Registered StrategyTemplate — import its module to trigger @register_template.
+        import importlib as _il
+        from trading_research.core.templates import _GLOBAL_REGISTRY
+        from trading_research.backtest.walkforward import _signals_to_dataframe
+
+        template_module = cfg_raw.get("template_module")
+        if template_module:
+            try:
+                _il.import_module(template_module)
+            except ImportError as e:
+                typer.echo(f"ERROR: cannot import template_module '{template_module}': {e}", err=True)
+                raise typer.Exit(code=2)
+        else:
+            # Auto-import known template modules so decorators fire.
+            for _m in [
+                "trading_research.strategies.vwap_reversion_v1",
+            ]:
+                try:
+                    _il.import_module(_m)
+                except ImportError:
+                    pass
+
+        try:
+            strategy_obj = _GLOBAL_REGISTRY.instantiate(
+                template_name, cfg_raw.get("knobs", {})
+            )
+        except (KeyError, Exception) as e:
+            typer.echo(f"ERROR: template instantiation failed — {e}", err=True)
+            raise typer.Exit(code=2)
+
+        from trading_research.core.instruments import InstrumentRegistry as _IR
+        _core_inst = _IR().get(symbol)
+
+        raw_signals = strategy_obj.generate_signals(bars, bars, _core_inst)
+        signals_df = _signals_to_dataframe(raw_signals, bars.index)
+
     else:
-        signals_df = mod.generate_signals(bars)
+        # Python signal_module (legacy path).
+        try:
+            mod = importlib.import_module(signal_module_path)
+        except ImportError as e:
+            typer.echo(f"ERROR: cannot import signal_module '{signal_module_path}': {e}", err=True)
+            raise typer.Exit(code=2)
+
+        signal_params = cfg_raw.get("signal_params", {})
+        if signal_params:
+            signals_df = mod.generate_signals(bars, **signal_params)
+        else:
+            signals_df = mod.generate_signals(bars)
 
     sf = SignalFrame(signals_df)
     try:
@@ -522,7 +611,7 @@ def backtest(
         raise typer.Exit(code=2)
 
     # --- Run engine ---
-    engine = BacktestEngine(bt_config, inst)
+    engine = BacktestEngine(bt_config, inst, strategy=strategy_obj)
     typer.echo("Running backtest…")
     result = engine.run(bars, signals_df)
 

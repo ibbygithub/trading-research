@@ -1,0 +1,53 @@
+# 6A Session-VWAP Mean Reversion with ADX Trend Filter — YAML template port
+#
+# YAML-template port of trading_research.strategies.fx_vwap_reversion_adx.
+# Produces identical signals to that Python module given the same features data.
+#
+# Entry: fade ATR-band extensions from session VWAP when ADX < adx_max
+#        (range-bound market) during London/NY overlap.
+# Stop:  ATR-based distance from signal-bar close.
+# Target: session VWAP at signal time.
+#
+# This config requires NO Python edits — modify knobs here to change behaviour.
+
+strategy_id: 6a-vwap-reversion-adx-yaml-v1
+symbol: 6A
+timeframe: 15m
+description: >
+  YAML port of 6A VWAP mean reversion with ADX trend filter.
+  Fades extensions beyond entry_atr_mult * ATR from session VWAP,
+  only when ADX < adx_max and the bar is in the London/NY overlap.
+
+knobs:
+  entry_atr_mult: 1.5    # ATR multiples beyond VWAP that trigger entry
+  stop_atr_mult: 1.5     # stop distance in ATR units from signal-bar close
+  adx_max: 22.0          # entry blocked when adx_14 >= this (trending market)
+
+entry:
+  long:
+    all:
+      - "close < vwap_session - entry_atr_mult * atr_14"
+      - "adx_14 < adx_max"
+  short:
+    all:
+      - "close > vwap_session + entry_atr_mult * atr_14"
+      - "adx_14 < adx_max"
+  time_window:
+    start_utc: "12:00"   # London/NY overlap start (UTC)
+    end_utc: "17:00"     # London/NY overlap end (UTC)
+
+exits:
+  stop:
+    long:  "close - stop_atr_mult * atr_14"
+    short: "close + stop_atr_mult * atr_14"
+  target:
+    long:  "vwap_session"
+    short: "vwap_session"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: true
+  max_holding_bars: null
+  use_ofi_resolution: false
+  quantity: 1
