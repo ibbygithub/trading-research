@@ -1,0 +1,37 @@
+# 6A Session-VWAP Mean Reversion with ADX Trend Filter — v1
+#
+# Quant mentor design, session 34. Exploration mode — not validated.
+#
+# Thesis: 6A mean-reverts around session VWAP when there's no dominant
+# directional flow. ADX filter blocks entries when the market is trending
+# (ADX >= 22). Time-of-day filter restricts to London/NY overlap (best 6A
+# liquidity). EOD flatten: no overnight on single-instrument FX.
+#
+# Reference: docs/analysis/6a-6c-strategy-designs.md
+#
+# Mode: exploration. Run, look at the trade log, see what it does.
+
+strategy_id: 6a-vwap-reversion-adx-v1
+symbol: 6A
+timeframe: 15m
+description: >
+  6A intraday VWAP mean reversion with ADX trend filter. Fades extensions
+  beyond entry_atr_mult * ATR from session VWAP, only when ADX < adx_max
+  and the bar is within the London/NY overlap. Target is session VWAP at
+  signal time, stop is ATR-based, EOD flat.
+
+signal_module: trading_research.strategies.fx_vwap_reversion_adx
+signal_params:
+  entry_atr_mult: 1.5    # spread width that triggers entry
+  stop_atr_mult: 1.5     # stop distance in ATR units
+  adx_max: 22.0          # below this, classify as range-bound
+  overlap_start_utc: "12:00"
+  overlap_end_utc: "17:00"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: true
+  max_holding_bars: null
+  use_ofi_resolution: false
+  quantity: 1

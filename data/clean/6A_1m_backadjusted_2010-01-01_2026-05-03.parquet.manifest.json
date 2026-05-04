@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "layer": "clean",
+  "symbol": "6A",
+  "timeframe": "1m",
+  "adjustment": "backadjusted",
+  "row_count": 5496515,
+  "date_range": {
+    "start": "2010-01-03T23:01:00+00:00",
+    "end": "2026-05-01T21:00:00+00:00"
+  },
+  "sources": [
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH10_1m_2010-01-01_2010-03-12.parquet",
+      "file_hash": "8476c51b3a91ccaa"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH11_1m_2010-12-15_2011-03-14.parquet",
+      "file_hash": "fac5f4fd6db877bf"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH12_1m_2011-12-14_2012-03-13.parquet",
+      "file_hash": "d54975598e077c40"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH13_1m_2012-12-13_2013-03-12.parquet",
+      "file_hash": "67e10cc23a511534"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH14_1m_2013-12-13_2014-03-12.parquet",
+      "file_hash": "49e4129f28e02ebe"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH15_1m_2014-12-15_2015-03-12.parquet",
+      "file_hash": "fa1dfa3803507f51"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH16_1m_2015-12-15_2016-03-14.parquet",
+      "file_hash": "b0475eccbc7d3f79"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH17_1m_2016-12-14_2017-03-14.parquet",
+      "file_hash": "1144ab97f3b8af56"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH18_1m_2017-12-13_2018-03-13.parquet",
+      "file_hash": "55124035f080d20f"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH19_1m_2018-12-13_2019-03-12.parquet",
+      "file_hash": "ba7aa6b67b5056a7"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH20_1m_2019-12-13_2020-03-12.parquet",
+      "file_hash": "5f9a025efe4ebea8"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH21_1m_2020-12-15_2021-03-12.parquet",
+      "file_hash": "73b19027bfb99722"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH22_1m_2021-12-15_2022-03-14.parquet",
+      "file_hash": "8df15bbe4f790517"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH23_1m_2022-12-14_2023-03-14.parquet",
+      "file_hash": "6d7cdfaf43aa5ee0"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH24_1m_2023-12-13_2024-03-12.parquet",
+      "file_hash": "0891ff203e7e58e4"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH24_1m_2024-01-01_2024-01-31.parquet",
+      "built_at": "2026-04-13T20:29:19.494925+00:00",
+      "row_count": 29992
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH25_1m_2024-12-13_2025-03-12.parquet",
+      "file_hash": "7cd5559d2fec4180"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADH26_1m_2025-12-15_2026-03-12.parquet",
+      "file_hash": "9ab05466681134c3"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM10_1m_2010-03-15_2010-06-11.parquet",
+      "file_hash": "6473d52ac6c361c1"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM11_1m_2011-03-15_2011-06-13.parquet",
+      "file_hash": "2085b869623c0eff"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM12_1m_2012-03-14_2012-06-12.parquet",
+      "file_hash": "6cb6edc347ae010a"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM13_1m_2013-03-13_2013-06-11.parquet",
+      "file_hash": "a5c9dc137e23e85b"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM14_1m_2014-03-13_2014-06-11.parquet",
+      "file_hash": "67ce2d7a538baeae"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM15_1m_2015-03-13_2015-06-11.parquet",
+      "file_hash": "99fb01ef05aa8ce8"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM16_1m_2016-03-15_2016-06-13.parquet",
+      "file_hash": "ef1abf997c3a7a00"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM17_1m_2017-03-15_2017-06-13.parquet",
+      "file_hash": "2266dff925dd0853"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM18_1m_2018-03-14_2018-06-12.parquet",
+      "file_hash": "cd53714cbcaf3461"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM19_1m_2019-03-13_2019-06-11.parquet",
+      "file_hash": "78d71bab40de50d1"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM20_1m_2020-03-13_2020-06-11.parquet",
+      "file_hash": "79c5c1ea1c7912b2"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM21_1m_2021-03-15_2021-06-11.parquet",
+      "file_hash": "7b4dde74d2c7cabd"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM22_1m_2022-03-15_2022-06-13.parquet",
+      "file_hash": "f5c6aeece7a3409c"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM23_1m_2023-03-15_2023-06-13.parquet",
+      "file_hash": "f099703c01ac1f30"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM24_1m_2024-03-13_2024-06-11.parquet",
+      "file_hash": "8e662125e5882a70"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM25_1m_2025-03-13_2025-06-11.parquet",
+      "file_hash": "89aff216e9d7d20e"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADM26_1m_2026-03-13_2026-05-03.parquet",
+      "file_hash": "0239a3e3519d63c6"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU10_1m_2010-06-14_2010-09-13.parquet",
+      "file_hash": "0ff698e46cf16535"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU11_1m_2011-06-14_2011-09-13.parquet",
+      "file_hash": "64c2d06da1468ebd"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU12_1m_2012-06-13_2012-09-11.parquet",
+      "file_hash": "f14b14c3b2062b2a"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU13_1m_2013-06-12_2013-09-11.parquet",
+      "file_hash": "0b798c8e9aca6f02"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU14_1m_2014-06-12_2014-09-11.parquet",
+      "file_hash": "73410621c3695199"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU15_1m_2015-06-12_2015-09-11.parquet",
+      "file_hash": "985a6d4b4f592dde"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU16_1m_2016-06-14_2016-09-13.parquet",
+      "file_hash": "47ad3f01d8b96ccd"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU17_1m_2017-06-14_2017-09-12.parquet",
+      "file_hash": "81a56ce2dd549601"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU18_1m_2018-06-13_2018-09-11.parquet",
+      "file_hash": "72745e3d39f8c43f"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU19_1m_2019-06-12_2019-09-11.parquet",
+      "file_hash": "e9235bef31ffea1f"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU20_1m_2020-06-12_2020-09-11.parquet",
+      "file_hash": "d0aa0dcd785ce90d"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU21_1m_2021-06-14_2021-09-13.parquet",
+      "file_hash": "2ba854c54c1588ba"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU22_1m_2022-06-14_2022-09-13.parquet",
+      "file_hash": "8f766bf987e4b2bf"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU23_1m_2023-06-14_2023-09-12.parquet",
+      "file_hash": "0638e2fa506ad118"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU24_1m_2024-06-12_2024-09-11.parquet",
+      "file_hash": "ffcaf1bbff2dec4f"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADU25_1m_2025-06-12_2025-09-11.parquet",
+      "file_hash": "9fddde79d81d757c"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ10_1m_2010-09-14_2010-12-14.parquet",
+      "file_hash": "04f405a3dd10b2f5"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ11_1m_2011-09-14_2011-12-13.parquet",
+      "file_hash": "2086013525e86dbc"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ12_1m_2012-09-12_2012-12-12.parquet",
+      "file_hash": "19de7916019508a8"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ13_1m_2013-09-12_2013-12-12.parquet",
+      "file_hash": "66025c8625d39144"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ14_1m_2014-09-12_2014-12-12.parquet",
+      "file_hash": "0c47be5129a5c118"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ15_1m_2015-09-14_2015-12-14.parquet",
+      "file_hash": "cbfee7cc1fceab98"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ16_1m_2016-09-14_2016-12-13.parquet",
+      "file_hash": "7840de4d88cb518d"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ17_1m_2017-09-13_2017-12-12.parquet",
+      "file_hash": "7854ae9f6082be37"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ18_1m_2018-09-12_2018-12-12.parquet",
+      "file_hash": "ec92fc9071b4cd16"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ19_1m_2019-09-12_2019-12-12.parquet",
+      "file_hash": "c6cc8b9cf7716283"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ20_1m_2020-09-14_2020-12-14.parquet",
+      "file_hash": "cc87f3c3cdd52462"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ21_1m_2021-09-14_2021-12-14.parquet",
+      "file_hash": "4e882c3909ca795e"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ22_1m_2022-09-14_2022-12-13.parquet",
+      "file_hash": "a51a439c49389898"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ23_1m_2023-09-13_2023-12-12.parquet",
+      "file_hash": "816d8e3a83b8f417"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ24_1m_2024-09-12_2024-12-12.parquet",
+      "file_hash": "d467c7d154c764e8"
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\raw\\contracts\\ADZ25_1m_2025-09-12_2025-12-12.parquet",
+      "file_hash": "e3f3002fb6cb1fb7"
+    }
+  ],
+  "parameters": {
+    "method": "back_adjusted_continuous",
+    "roll_days_before": 5
+  },
+  "built_at": "2026-05-03T20:28:36.551143+00:00",
+  "code_commit": "ab4f8d5"
+}

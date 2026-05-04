@@ -145,44 +145,64 @@
       "trial_group": "v1-cost-sweep"
     },
     {
-      "timestamp": "2026-05-02T18:12:55.030427+00:00",
-      "strategy_id": "vwap-reversion-v1-6E-wf-baseline",
+      "code_version": "41efe0a",
+      "cohort_label": "41efe0a",
       "config_hash": "39ea48ba",
+      "featureset_hash": null,
       "sharpe": -3.233115459842441,
-      "trial_group": "session-31b",
-      "code_version": "41efe0a",
-      "featureset_hash": null,
-      "cohort_label": "41efe0a"
+      "strategy_id": "vwap-reversion-v1-6E-wf-baseline",
+      "timestamp": "2026-05-02T18:12:55.030427+00:00",
+      "trial_group": "session-31b"
     },
     {
-      "timestamp": "2026-05-02T18:12:55.037557+00:00",
-      "strategy_id": "vwap-reversion-v1-6E-wf-filtered",
+      "code_version": "41efe0a",
+      "cohort_label": "41efe0a",
       "config_hash": "347bead4",
-      "sharpe": -3.9723291457003693,
-      "trial_group": "session-31b",
-      "code_version": "41efe0a",
       "featureset_hash": null,
-      "cohort_label": "41efe0a"
+      "sharpe": -3.9723291457003693,
+      "strategy_id": "vwap-reversion-v1-6E-wf-filtered",
+      "timestamp": "2026-05-02T18:12:55.037557+00:00",
+      "trial_group": "session-31b"
     },
     {
-      "timestamp": "2026-05-03T00:41:56.035290+00:00",
-      "strategy_id": "vwap-reversion-v1-6E-v2-realistic",
+      "code_version": "241bb05",
+      "cohort_label": "241bb05",
       "config_hash": "39775fe4",
-      "sharpe": -15.190724238624803,
-      "trial_group": "session-33a",
-      "code_version": "241bb05",
       "featureset_hash": "253b884e3ca304fe",
-      "cohort_label": "241bb05"
+      "sharpe": -15.190724238624803,
+      "strategy_id": "vwap-reversion-v1-6E-v2-realistic",
+      "timestamp": "2026-05-03T00:41:56.035290+00:00",
+      "trial_group": "session-33a"
     },
     {
-      "timestamp": "2026-05-03T00:41:56.042181+00:00",
-      "strategy_id": "vwap-reversion-v1-6E-v2-pessimistic",
-      "config_hash": "afce36fb",
-      "sharpe": -17.44704073921939,
-      "trial_group": "session-33a",
       "code_version": "241bb05",
+      "cohort_label": "241bb05",
+      "config_hash": "afce36fb",
       "featureset_hash": "253b884e3ca304fe",
-      "cohort_label": "241bb05"
+      "sharpe": -17.44704073921939,
+      "strategy_id": "vwap-reversion-v1-6E-v2-pessimistic",
+      "timestamp": "2026-05-03T00:41:56.042181+00:00",
+      "trial_group": "session-33a"
+    },
+    {
+      "code_version": "ab4f8d5",
+      "cohort_label": "ab4f8d5",
+      "config_hash": "83afe337e2c6e806ea3db2b3486b366b",
+      "featureset_hash": null,
+      "sharpe": -4.786613317645231,
+      "strategy_id": "6a-vwap-reversion-adx-v1",
+      "timestamp": "2026-05-03T20:53:01.131421+00:00",
+      "trial_group": "6a-vwap-reversion-adx-v1"
+    },
+    {
+      "code_version": "ab4f8d5",
+      "cohort_label": "ab4f8d5",
+      "config_hash": "771b0ffb54b843dc33e175741df835b1",
+      "featureset_hash": null,
+      "sharpe": -2.706422174217336,
+      "strategy_id": "6c-donchian-breakout-ema-v1",
+      "timestamp": "2026-05-03T20:53:34.161363+00:00",
+      "trial_group": "6c-donchian-breakout-ema-v1"
     }
   ]
 }
