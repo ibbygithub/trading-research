@@ -539,7 +539,33 @@ def backtest(
 
     if has_entry:
         # YAML template: declarative entry/exit conditions, no Python required.
+        from trading_research.backtest.multiframe import join_htf, safe_prefix
         from trading_research.strategies.template import YAMLStrategy
+
+        # Join higher-timeframe features if requested (session 37).
+        higher_timeframes = cfg_raw.get("higher_timeframes", [])
+        for htf in higher_timeframes:
+            from trading_research.replay.data import DataNotFoundError, _find_parquet
+            import pandas as _pd
+            try:
+                htf_path = _find_parquet(
+                    feat_dir,
+                    f"{symbol}_backadjusted_{htf}_features_{feature_set}_*.parquet",
+                )
+            except DataNotFoundError as e:
+                typer.echo(f"ERROR: HTF features ({htf}) not found — {e}", err=True)
+                raise typer.Exit(code=2)
+            htf_bars = _pd.read_parquet(htf_path, engine="pyarrow")
+            htf_bars = htf_bars.set_index("timestamp_utc")
+            htf_bars.index = _pd.DatetimeIndex(htf_bars.index, tz="UTC")
+            htf_bars = htf_bars.sort_index()
+            if from_date:
+                htf_bars = htf_bars[htf_bars.index >= _pd.Timestamp(from_date, tz="UTC")]
+            if to_date:
+                htf_bars = htf_bars[htf_bars.index <= _pd.Timestamp(to_date, tz="UTC")]
+            bars = join_htf(bars, htf_bars, prefix=safe_prefix(htf))
+            typer.echo(f"Joined HTF features: {htf} ({len(htf_bars):,} bars)")
+
         try:
             yaml_strat = YAMLStrategy.from_config(cfg_raw)
         except (ValueError, KeyError) as e:

@@ -15,8 +15,28 @@ timeframe: <string>            # bar resolution (5m, 15m, 60m, …)
 description: >                 # human-readable summary (optional but encouraged)
   …
 
+feature_set: base-v1           # feature-set version to consume (optional, for documentation)
+
+higher_timeframes:             # additional timeframes joined before signal generation (optional)
+  - 60m                        # runner loads HTF parquet and joins with look-ahead prevention
+
 knobs:                         # named scalar parameters referenced in expressions
   param_name: <float>
+
+# Composable regime filter — block entries in unfavourable market conditions (optional).
+# Single filter (inline):
+regime_filter:
+  type: volatility-regime
+  vol_percentile_threshold: 75
+  atr_column: atr_14
+# Single filter (shared config reference):
+# regime_filter:
+#   include: volatility-p75    # loads configs/regimes/volatility-p75.yaml
+# Multiple filters (list):
+# regime_filters:
+#   - type: volatility-regime
+#     vol_percentile_threshold: 75
+#   - include: trend-filter-adx25
 
 entry:                         # entry conditions (mutually exclusive with template: / signal_module:)
   long:
@@ -179,6 +199,98 @@ column takes precedence. Avoid naming knobs after feature columns.
 
 ---
 
+## Higher-timeframe references (session 37)
+
+A strategy can condition entries on indicators from a coarser timeframe — e.g.,
+a 15m entry strategy gated by a 60m EMA trend bias. Add `higher_timeframes:` to
+list which TFs to join, then reference their columns directly in entry expressions.
+
+```yaml
+higher_timeframes:
+  - 60m
+
+entry:
+  long:
+    all:
+      - "close < vwap_session - entry_atr_mult * atr_14"
+      - "tf60m_ema_20 > tf60m_ema_50"   # 60m uptrend bias
+```
+
+### Column naming convention
+
+After the runner calls `join_htf(primary, htf, prefix=safe_prefix("60m"))`,
+every column from the 60m features parquet becomes available with the prefix
+`tf60m_`. The `tf` prefix is added when the timeframe string starts with a digit
+so that the resulting identifier is valid Python (required by the expression
+parser):
+
+| Timeframe | Prefix | Example column |
+|:---|:---|:---|
+| `60m` | `tf60m_` | `tf60m_ema_20` |
+| `240m` | `tf240m_` | `tf240m_atr_14` |
+| `1D` | `tf1D_` | `tf1D_vwap_session` |
+| `daily` | `daily_` | `daily_close` (no digit prefix needed) |
+
+### Look-ahead prevention
+
+The runner shifts the HTF DataFrame by 1 bar before joining. A 60m bar with
+timestamp 12:00 UTC (which covers 12:00–13:00 and closes at 13:00) only becomes
+visible to primary bars at 13:00 or later. Primary bars during 12:00–12:55 see
+the prior completed 60m bar (11:00), not the currently open one. Bars before the
+first available HTF bar have `NaN` in the HTF columns — `ExprEvaluator`
+comparisons return `False` on NaN, making those bars untradeable.
+
+---
+
+## Composable regime filters (session 37)
+
+A regime filter blocks entries during unfavourable market conditions. Filters are
+defined once in `configs/regimes/` and included by reference in any strategy, or
+specified inline for one-off use.
+
+### Inline filter
+
+```yaml
+regime_filter:
+  type: volatility-regime
+  vol_percentile_threshold: 75
+  atr_column: atr_14
+```
+
+### Shared filter (by reference)
+
+```yaml
+regime_filter:
+  include: volatility-p75    # loads configs/regimes/volatility-p75.yaml
+```
+
+### Multiple filters (all must pass — AND semantics)
+
+```yaml
+regime_filters:
+  - include: volatility-p75
+  - type: volatility-regime
+    vol_percentile_threshold: 90
+    atr_column: tf60m_atr_14
+```
+
+### Walk-forward behaviour
+
+In rolling walk-forward mode the runner calls `strategy.fit_filters(train_bars)`
+once per fold, fitting the ATR threshold on the training window only. This
+prevents the P75 threshold from leaking future ATR distribution information into
+the test window. In single-window (non-rolling) backtests the filters auto-fit
+on the full evaluation dataset — valid for exploration, but note the
+data-scientist caveat: the threshold is in-sample on the window it was fitted on.
+
+### Available filter types
+
+| `type` | Parameters | Description |
+|:---|:---|:---|
+| `volatility-regime` | `vol_percentile_threshold` (50–95, default 75), `atr_column` (default `atr_14`) | Blocks entries when ATR exceeds the Pth percentile of the training window |
+
+---
+
 ## Backtest defaults
 
 | Field | Default | Notes |
@@ -191,7 +303,7 @@ column takes precedence. Avoid naming knobs after feature columns.
 
 ---
 
-## Full example — 6A VWAP reversion
+## Full example — 6A VWAP reversion (single-TF)
 
 ```yaml
 strategy_id: 6a-vwap-reversion-adx-yaml-v1
@@ -226,12 +338,18 @@ exits:
 
 backtest:
   fill_model: next_bar_open
-  same_bar_justification: ""
   eod_flat: true
-  max_holding_bars: null
-  use_ofi_resolution: false
   quantity: 1
 ```
+
+## Full example — 6A VWAP reversion (multi-TF + regime filter)
+
+See [`configs/strategies/6a-vwap-reversion-mtf-v1.yaml`](../../configs/strategies/6a-vwap-reversion-mtf-v1.yaml)
+for a complete working example that adds:
+- A 60m EMA trend bias filter (`higher_timeframes: [60m]`, columns `tf60m_ema_20` / `tf60m_ema_50`)
+- A P75 volatility regime filter (`regime_filter: include: volatility-p75`)
+
+The shared regime config lives in [`configs/regimes/volatility-p75.yaml`](../../configs/regimes/volatility-p75.yaml).
 
 ---
 

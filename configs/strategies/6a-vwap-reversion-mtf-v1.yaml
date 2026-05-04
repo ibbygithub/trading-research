@@ -1,0 +1,76 @@
+# 6A Session-VWAP Mean Reversion — Multi-Timeframe version 1
+#
+# Extends the single-TF YAML port (6a-vwap-reversion-adx-yaml-v1) with:
+#   1. 60-minute bias filter: only take longs when 60m EMA(20) > 60m EMA(50)
+#      (short-term uptrend on the higher frame) and vice-versa for shorts.
+#   2. Volatility regime gate (P75): block entries when intraday ATR is in the
+#      top quartile of its training-window distribution.
+#
+# Market-structure rationale
+# --------------------------
+# 6A is an AUD/USD futures contract that mean-reverts around session VWAP
+# during range-bound conditions. Adding a 60m directional bias reduces false
+# entries against the dominant intraday trend, while the volatility gate
+# prevents chasing VWAP fades during news-driven moves.
+#
+# Column naming for HTF references
+# ---------------------------------
+# After join_htf("60m"), 60m feature columns are prefixed with "tf60m_"
+# (safe_prefix("60m") → "tf60m" — digit-leading TFs get a "tf" prefix so
+# they are valid Python identifiers parseable by ExprEvaluator):
+#   tf60m_ema_20, tf60m_ema_50, tf60m_atr_14, tf60m_vwap_session, etc.
+# The strategy references them exactly like any primary-TF column.
+
+strategy_id: 6a-vwap-reversion-mtf-v1
+symbol: 6A
+timeframe: 15m
+description: >
+  Multi-TF VWAP mean reversion: fades ATR-band extensions from session VWAP
+  during London/NY overlap, gated by 60m EMA trend bias and a P75 volatility
+  regime filter. Entry only when the 15m signal aligns with the 60m trend.
+
+feature_set: base-v1
+
+# Higher-timeframe features to join before signal generation.
+# The runner loads 6A_backadjusted_60m_features_base-v1_*.parquet and joins
+# it onto the 15m bars with the "60m_" prefix.
+higher_timeframes:
+  - 60m
+
+knobs:
+  entry_atr_mult: 1.5    # ATR multiples beyond VWAP that trigger entry
+  stop_atr_mult:  1.5    # stop distance from signal-bar close (ATR units)
+  adx_max:        22.0   # entry blocked when adx_14 >= this (trending)
+
+# Composable regime filter (session 37): shared block from configs/regimes/.
+# Fits the ATR threshold on training data in walk-forward mode.
+regime_filter:
+  include: volatility-p75
+
+entry:
+  long:
+    all:
+      - "close < vwap_session - entry_atr_mult * atr_14"   # 15m: below VWAP band
+      - "adx_14 < adx_max"                                  # 15m: range-bound
+      - "tf60m_ema_20 > tf60m_ema_50"                        # 60m: uptrend bias
+  short:
+    all:
+      - "close > vwap_session + entry_atr_mult * atr_14"   # 15m: above VWAP band
+      - "adx_14 < adx_max"                                  # 15m: range-bound
+      - "tf60m_ema_20 < tf60m_ema_50"                        # 60m: downtrend bias
+  time_window:
+    start_utc: "12:00"   # London/NY overlap start
+    end_utc:   "17:00"   # London/NY overlap end
+
+exits:
+  stop:
+    long:  "close - stop_atr_mult * atr_14"
+    short: "close + stop_atr_mult * atr_14"
+  target:
+    long:  "vwap_session"
+    short: "vwap_session"
+
+backtest:
+  fill_model: next_bar_open
+  eod_flat: true
+  quantity: 1

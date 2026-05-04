@@ -1,0 +1,15 @@
+# Volatility regime filter — top-quartile gate (P75)
+#
+# Blocks entries when intraday ATR is in the top 25% of the training window.
+# This is the structural default for mean-reversion strategies: high-vol bars
+# are dominated by directional flows that defeat reversion entries.
+#
+# The 75th-percentile threshold is structural, not data-mined. It is a
+# standard risk-management partition (top quartile = "trending / don't trade").
+# Do NOT sweep this value to optimise backtest metrics.
+#
+# Reference: sprint-31 regime-filter-spec.md, Path A.
+
+type: volatility-regime
+vol_percentile_threshold: 75
+atr_column: atr_14

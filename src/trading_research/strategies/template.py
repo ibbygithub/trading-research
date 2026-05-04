@@ -1,5 +1,37 @@
 """YAML-defined strategy — entry/exit conditions without Python code.
 
+Session-37 additions
+--------------------
+**Multi-timeframe references** — a strategy can reference HTF columns by name
+(e.g. ``60m_ema_20``) if the caller has joined them onto the primary DataFrame
+via :func:`trading_research.backtest.multiframe.join_htf` before calling
+``generate_signals_df``.  No changes to ``YAMLStrategy`` are needed for
+column access; the columns simply exist in the DataFrame.
+
+The ``higher_timeframes`` YAML key documents which TFs a strategy expects,
+so the walkforward runner knows which parquets to load.  ``YAMLStrategy``
+stores this list in ``self.higher_timeframes`` but does not load data itself.
+
+**Composable regime filters** — a strategy YAML can include one or more regime
+filter blocks via ``regime_filter:`` (single) or ``regime_filters:`` (list).
+Each block is either an inline spec::
+
+    regime_filter:
+      type: volatility-regime
+      vol_percentile_threshold: 75
+      atr_column: atr_14
+
+or a reference to a shared config in ``configs/regimes/``::
+
+    regime_filter:
+      include: volatility-p75   # loads configs/regimes/volatility-p75.yaml
+
+For walk-forward evaluation, call ``strategy.fit_filters(train_df)`` on the
+training window before ``generate_signals_df(test_df)``.  In non-walk-forward
+mode the filters auto-fit on the entire evaluation dataset (acceptable for
+single-window backtests; the data scientist will note this is lookahead on the
+threshold).
+
 A strategy is described entirely in YAML with an ``entry`` block:
 
     knobs:
@@ -53,14 +85,19 @@ from __future__ import annotations
 
 import ast
 from datetime import time as dt_time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
+import yaml
 
 if TYPE_CHECKING:
     from trading_research.core.instruments import Instrument
     from trading_research.core.strategies import ExitDecision, PortfolioContext, Position, Signal
+    from trading_research.strategies.regime import RegimeFilter
+
+_DEFAULT_REGIMES_DIR = Path("configs/regimes")
 
 # ---------------------------------------------------------------------------
 # Expression evaluator
@@ -247,16 +284,33 @@ class YAMLStrategy:
         - ``signal_module:`` present → importlib module
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: dict, regimes_dir: Path | None = None) -> None:
         self._config = config
         self._knobs: dict[str, Any] = config.get("knobs", {})
         self._entry: dict = config["entry"]
         self._exits: dict = config.get("exits", {})
         self._id: str = config.get("strategy_id", "yaml-strategy")
 
+        # Session-37: multi-TF — list of additional TFs the runner should join.
+        self.higher_timeframes: list[str] = config.get("higher_timeframes", [])
+
+        # Session-37: composable regime filters.
+        _rdir = regimes_dir or _DEFAULT_REGIMES_DIR
+        self._regime_filters: list[RegimeFilter] = _parse_regime_filters(config, _rdir)
+
     @classmethod
-    def from_config(cls, config: dict) -> YAMLStrategy:
+    def from_config(
+        cls, config: dict, regimes_dir: Path | None = None
+    ) -> YAMLStrategy:
         """Construct from a parsed YAML dict.
+
+        Parameters
+        ----------
+        config:
+            Parsed strategy YAML dict.  Must contain an ``entry`` block.
+        regimes_dir:
+            Directory to resolve ``include:`` regime filter references.
+            Defaults to ``configs/regimes`` relative to the working directory.
 
         Raises ``ValueError`` if the ``entry`` block is missing.
         """
@@ -266,7 +320,7 @@ class YAMLStrategy:
                 "For Python-module strategies use 'signal_module'; "
                 "for registered templates use 'template'."
             )
-        return cls(config)
+        return cls(config, regimes_dir=regimes_dir)
 
     # ------------------------------------------------------------------
     # Strategy Protocol properties
@@ -316,6 +370,12 @@ class YAMLStrategy:
             window_mask = _build_time_window_mask(df, tw)
             long_mask = long_mask & window_mask
             short_mask = short_mask & window_mask
+
+        # Regime filter (optional, session 37) — AND with both directions.
+        regime_mask = self._build_regime_mask(df, n)
+        if not regime_mask.all():
+            long_mask = long_mask & regime_mask
+            short_mask = short_mask & regime_mask
 
         # Conflict resolution — if both directions fire on the same bar,
         # neither does (matches the Python-module convention).
@@ -397,6 +457,47 @@ class YAMLStrategy:
         from trading_research.core.strategies import ExitDecision
 
         return ExitDecision(action="hold", reason="engine handles TP/SL/EOD")
+
+    # ------------------------------------------------------------------
+    # Regime filter support (session 37)
+    # ------------------------------------------------------------------
+
+    def fit_filters(self, train_df: pd.DataFrame) -> None:
+        """Fit all regime filters on *train_df* (training-window features).
+
+        Called by ``run_rolling_walkforward`` once per fold on the training
+        slice.  In non-rolling backtests the filters auto-fit when
+        ``generate_signals_df`` is first called (see ``_build_regime_mask``).
+        """
+        for f in self._regime_filters:
+            f.fit(train_df)
+
+    def _build_regime_mask(self, df: pd.DataFrame, n: int) -> np.ndarray:
+        """Return a boolean mask (True = tradeable) for all *n* bars in *df*.
+
+        Each registered regime filter contributes an AND term.  Filters that
+        have not been fitted (no prior ``fit_filters`` call) are auto-fitted
+        on *df* — this is valid in non-rolling mode and invalid in walk-forward
+        (where the caller must call ``fit_filters(train_df)`` explicitly).
+        """
+        if not self._regime_filters:
+            return np.ones(n, dtype=bool)
+
+        from trading_research.strategies.regime.volatility_regime import VolatilityRegimeFilter
+
+        mask = np.ones(n, dtype=bool)
+        for flt in self._regime_filters:
+            if isinstance(flt, VolatilityRegimeFilter):
+                # Vectorised path: O(n) instead of O(n × Python overhead).
+                mask = mask & flt.vectorized_mask(df)
+            else:
+                # Generic fallback: row-by-row via the RegimeFilter Protocol.
+                if not flt.is_fitted:
+                    flt.fit(df)
+                for i in range(n):
+                    if not flt.is_tradeable(df, i):
+                        mask[i] = False
+        return mask
 
     # ------------------------------------------------------------------
     # Condition evaluation helpers
@@ -488,11 +589,108 @@ def _eval_price_expr(
     return np.full(n, float(result), dtype=float)
 
 
-def load_yaml_strategy(config: dict) -> YAMLStrategy:
+def load_yaml_strategy(config: dict, regimes_dir: Path | None = None) -> YAMLStrategy:
     """Convenience wrapper: validate dispatch key and return a YAMLStrategy."""
     if "template" in config or "signal_module" in config:
         raise ValueError(
             "load_yaml_strategy() is for 'entry:' configs only. "
             "This config uses 'template' or 'signal_module'."
         )
-    return YAMLStrategy.from_config(config)
+    return YAMLStrategy.from_config(config, regimes_dir=regimes_dir)
+
+
+# ---------------------------------------------------------------------------
+# Regime filter parsing helpers (session 37)
+# ---------------------------------------------------------------------------
+
+
+def _parse_regime_filters(config: dict, regimes_dir: Path) -> list[RegimeFilter]:
+    """Parse ``regime_filter`` and ``regime_filters`` blocks from *config*.
+
+    Returns a (possibly empty) list of instantiated ``RegimeFilter`` objects.
+    Filters are constructed but NOT fitted — call ``fit_filters(train_df)``
+    before generating signals in walk-forward mode.
+
+    Supported YAML shapes::
+
+        # Single filter, inline:
+        regime_filter:
+          type: volatility-regime
+          vol_percentile_threshold: 75
+          atr_column: atr_14
+
+        # Single filter, by reference to configs/regimes/<name>.yaml:
+        regime_filter:
+          include: volatility-p75
+
+        # Multiple filters (list):
+        regime_filters:
+          - type: volatility-regime
+            vol_percentile_threshold: 75
+          - include: trend-filter-adx25
+    """
+    from trading_research.strategies.regime import build_filter
+
+    specs: list[dict] = []
+
+    single = config.get("regime_filter")
+    if single is not None:
+        if not isinstance(single, dict):
+            raise ValueError(
+                "regime_filter must be a mapping with 'type' or 'include'. "
+                f"Got {type(single).__name__}: {single!r}"
+            )
+        specs.append(single)
+
+    multi = config.get("regime_filters", [])
+    if not isinstance(multi, list):
+        raise ValueError(
+            "regime_filters must be a list of filter specs. "
+            f"Got {type(multi).__name__}"
+        )
+    specs.extend(multi)
+
+    filters: list[RegimeFilter] = []
+    for spec in specs:
+        if not isinstance(spec, dict):
+            raise ValueError(
+                f"Each regime filter spec must be a mapping; got {type(spec).__name__}: {spec!r}"
+            )
+        resolved_spec = _resolve_regime_spec(spec, regimes_dir)
+        filter_type = resolved_spec.get("type")
+        if not filter_type:
+            raise ValueError(
+                f"Regime filter spec must have a 'type' key. Got keys: {list(resolved_spec)}"
+            )
+        kwargs = {k: v for k, v in resolved_spec.items() if k != "type"}
+        filters.append(build_filter(filter_type, **kwargs))
+
+    return filters
+
+
+def _resolve_regime_spec(spec: dict, regimes_dir: Path) -> dict:
+    """If *spec* has an ``include`` key, load the referenced YAML file.
+
+    The ``include`` value is a bare name (no extension) resolved relative to
+    *regimes_dir*.  Example: ``include: volatility-p75`` resolves to
+    ``configs/regimes/volatility-p75.yaml``.
+
+    Returns the (merged) spec dict with ``include`` removed and ``type`` present.
+    """
+    if "include" not in spec:
+        return dict(spec)
+
+    name = spec["include"]
+    path = regimes_dir / f"{name}.yaml"
+    if not path.exists():
+        raise ValueError(
+            f"Regime filter config '{name}' not found at {path}. "
+            f"Create {path} or use an inline 'type:' spec."
+        )
+    loaded: dict = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError(
+            f"Regime filter file {path} must contain a mapping; got {type(loaded).__name__}"
+        )
+    # Inline fields in the spec override the file (allows per-strategy overrides).
+    return {**loaded, **{k: v for k, v in spec.items() if k != "include"}}

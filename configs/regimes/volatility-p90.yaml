@@ -1,0 +1,11 @@
+# Volatility regime filter — top-decile gate (P90)
+#
+# Stricter variant: only blocks entries in the top 10% of ATR.
+# Appropriate when P75 is too aggressive (filters too many trades) or when
+# the strategy already has its own directional filter (e.g. ADX cap).
+#
+# The 90th-percentile threshold is structural. Do NOT sweep this value.
+
+type: volatility-regime
+vol_percentile_threshold: 90
+atr_column: atr_14

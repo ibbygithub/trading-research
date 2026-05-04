@@ -1,16 +1,30 @@
 """Walk-forward backtest runner.
 
-Supports two strategy instantiation paths:
+Supports three strategy instantiation paths:
 
-1. **Template path** (new, session 29+): YAML config has ``template:`` field.
+1. **YAML template** (session 36+): config has ``entry:`` block.
+   Strategy is a ``YAMLStrategy``; signals come from
+   ``strategy.generate_signals_df(bars)``.
+
+2. **Registered template** (session 29+): config has ``template:`` field.
    Strategy is instantiated via ``TemplateRegistry``, signals come from
    ``strategy.generate_signals(bars, features, instrument)``.
 
-2. **Legacy path**: YAML config has ``signal_module:`` field.  Strategy is a
+3. **Legacy path**: config has ``signal_module:`` field.  Strategy is a
    bare module with a ``generate_signals(bars, **params)`` function.
    Maintained for existing ZN configs; will be deprecated in sprint 38.
 
-A config with both ``template:`` and ``signal_module:`` is rejected.
+A config with more than one of these keys is rejected.
+
+Session-37 additions
+--------------------
+- ``higher_timeframes`` in the YAML config triggers HTF feature loading and
+  ``join_htf`` joining before signal generation.
+- YAML strategies support ``regime_filter`` blocks; ``run_walkforward`` fits
+  them on the full dataset (auto-fit); ``run_rolling_walkforward`` fits them
+  on the training window per fold via ``strategy.fit_filters(train_bars)``.
+- ``run_rolling_walkforward`` now accepts YAML (``entry:``) strategies in
+  addition to registered templates.
 """
 
 from __future__ import annotations
@@ -26,6 +40,7 @@ import yaml
 
 from trading_research.backtest.engine import BacktestConfig, BacktestEngine
 from trading_research.backtest.fills import FillModel
+from trading_research.backtest.multiframe import join_htf, safe_prefix
 from trading_research.backtest.signals import SignalFrame
 from trading_research.core.strategies import Signal
 from trading_research.data.instruments import load_instrument
@@ -63,6 +78,43 @@ def _signals_to_dataframe(signals: list[Signal], index: pd.DatetimeIndex) -> pd.
         {"signal": signal_arr, "stop": stop_arr, "target": target_arr},
         index=index,
     )
+
+
+def _load_and_join_htf(
+    bars: pd.DataFrame,
+    higher_timeframes: list[str],
+    symbol: str,
+    feature_set: str,
+    feat_dir: Path,
+    start_date: str | None,
+    end_date: str | None,
+) -> pd.DataFrame:
+    """Load each HTF features parquet and join it onto *bars*.
+
+    Returns the (possibly wider) primary bars DataFrame.
+    No-op when *higher_timeframes* is empty.
+    """
+    from trading_research.replay.data import _find_parquet
+
+    for htf in higher_timeframes:
+        htf_path = _find_parquet(
+            feat_dir,
+            f"{symbol}_backadjusted_{htf}_features_{feature_set}_*.parquet",
+        )
+        htf_bars = pd.read_parquet(htf_path, engine="pyarrow")
+        htf_bars = htf_bars.set_index("timestamp_utc")
+        htf_bars.index = pd.DatetimeIndex(htf_bars.index, tz="UTC")
+        htf_bars = htf_bars.sort_index()
+
+        if start_date:
+            htf_bars = htf_bars[htf_bars.index >= pd.Timestamp(start_date, tz="UTC")]
+        if end_date:
+            htf_bars = htf_bars[htf_bars.index <= pd.Timestamp(end_date, tz="UTC")]
+
+        bars = join_htf(bars, htf_bars, prefix=safe_prefix(htf))
+        log.info("walkforward.htf_joined", htf=htf, htf_bars=len(htf_bars))
+
+    return bars
 
 
 def run_walkforward(
@@ -134,10 +186,20 @@ def run_walkforward(
     if end_date:
         bars = bars[bars.index <= pd.Timestamp(end_date, tz="UTC")]
 
+    # 2b. Join higher-timeframe features (session 37).
+    higher_timeframes = cfg_raw.get("higher_timeframes", [])
+    if higher_timeframes:
+        bars = _load_and_join_htf(
+            bars, higher_timeframes, symbol, feature_set, feat_dir, start_date, end_date
+        )
+
     # 3. Generate signals for the entire dataset
     if use_yaml_template:
         from trading_research.strategies.template import YAMLStrategy
         strategy = YAMLStrategy.from_config(cfg_raw)
+        # Auto-fit regime filters on the full dataset (non-rolling mode).
+        if strategy._regime_filters:
+            strategy.fit_filters(bars)
         signals_df = strategy.generate_signals_df(bars)
         log.info(
             "walkforward.yaml_template_signals",
@@ -312,10 +374,11 @@ def run_rolling_walkforward(
     bt_cfg_raw = cfg_raw.get("backtest", {})
     feature_set = cfg_raw.get("feature_set", "base-v1")
     template_name = cfg_raw.get("template")
+    has_entry = "entry" in cfg_raw
 
-    if not template_name:
+    if not template_name and not has_entry:
         raise ValueError(
-            f"run_rolling_walkforward requires a 'template:' field in {config_path}. "
+            f"run_rolling_walkforward requires a 'template:' or 'entry:' field in {config_path}. "
             "Legacy signal_module configs are not supported."
         )
 
@@ -354,10 +417,18 @@ def run_rolling_walkforward(
     if end_date:
         bars = bars[bars.index <= pd.Timestamp(end_date, tz="UTC")]
 
-    # Build instrument registry for strategy
+    # Join higher-timeframe features (session 37).
+    higher_timeframes = cfg_raw.get("higher_timeframes", [])
+    if higher_timeframes:
+        bars = _load_and_join_htf(
+            bars, higher_timeframes, symbol, feature_set, feat_dir, start_date, end_date
+        )
+
+    # Build instrument registry for strategy (template path only)
     from trading_research.core.instruments import InstrumentRegistry
     from trading_research.core.templates import _GLOBAL_REGISTRY
-    _ensure_template_imported(template_name)
+    if template_name:
+        _ensure_template_imported(template_name)
     core_registry = InstrumentRegistry()
     core_inst = core_registry.get(symbol)
     knobs = cfg_raw.get("knobs", {})
@@ -382,7 +453,7 @@ def run_rolling_walkforward(
 
     log.info(
         "rolling_walkforward.start",
-        template=template_name,
+        strategy=template_name or strategy_id,
         train_months=train_months,
         test_months=test_months,
         embargo_bars=embargo_bars,
@@ -415,16 +486,23 @@ def run_rolling_walkforward(
             )
             continue
 
-        # Fresh strategy instance per fold (ensures filter state is clean)
-        strategy = _GLOBAL_REGISTRY.instantiate(template_name, knobs)
+        # Fresh strategy instance per fold (ensures filter state is clean).
+        if has_entry:
+            from trading_research.strategies.template import YAMLStrategy
+            strategy = YAMLStrategy.from_config(cfg_raw)
+        else:
+            strategy = _GLOBAL_REGISTRY.instantiate(template_name, knobs)
 
-        # Fit regime filters on training window only
+        # Fit regime filters on training window only.
         if hasattr(strategy, "fit_filters"):
             strategy.fit_filters(train_bars)
 
-        # Generate signals on test window
-        signal_list = strategy.generate_signals(test_bars, test_bars, core_inst)
-        signals_df = _signals_to_dataframe(signal_list, test_bars.index)
+        # Generate signals on test window.
+        if has_entry:
+            signals_df = strategy.generate_signals_df(test_bars)  # type: ignore[union-attr]
+        else:
+            signal_list = strategy.generate_signals(test_bars, test_bars, core_inst)
+            signals_df = _signals_to_dataframe(signal_list, test_bars.index)
 
         sf = SignalFrame(signals_df)
         sf.validate()
