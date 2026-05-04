@@ -574,6 +574,12 @@ def backtest(
         config_path=strategy,
         sharpe=summary.get("sharpe", float("nan")),
         trial_group=trial_group_val,
+        calmar=summary.get("calmar"),
+        max_drawdown_usd=summary.get("max_drawdown_usd"),
+        win_rate=summary.get("win_rate"),
+        total_trades=summary.get("total_trades"),
+        instrument=symbol,
+        timeframe=timeframe,
     )
 
 
@@ -876,6 +882,137 @@ def portfolio(
     except Exception as e:
         typer.secho(f"Failed to generate portfolio report: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
+
+# ---------------------------------------------------------------------------
+# sweep
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def sweep(
+    strategy: Annotated[Path, typer.Option(help="Path to base strategy YAML config.")],
+    param: Annotated[
+        Optional[list[str]],
+        typer.Option("--param", help="'key=v1,v2,v3' — can be repeated for multiple params."),
+    ] = None,
+    out: Annotated[Optional[Path], typer.Option(help="Output root (default: runs/).")] = None,
+) -> None:
+    """Run a parameter grid sweep over a strategy config.
+
+    Generates the cartesian product of all --param values and runs each
+    combination as an exploration backtest trial.  All results are tagged
+    mode=exploration and share a parent_sweep_id so you can track them as
+    a cohort in the leaderboard.
+
+    Examples:
+        uv run trading-research sweep \\
+            --strategy configs/strategies/6a-vwap-reversion-adx-v1.yaml \\
+            --param entry_atr_mult=1.0,1.5,2.0 \\
+            --param adx_max=18,22,25
+
+        # Produces 3 × 3 = 9 exploration trials.
+    """
+    from trading_research.cli.sweep import expand_params, run_sweep
+
+    param_specs: list[str] = param or []
+
+    # Validate we have at least one param (a sweep with no params is just one run).
+    if not param_specs:
+        typer.echo(
+            "WARNING: no --param specified; running a single variant (identity sweep).",
+            err=True,
+        )
+
+    combos = expand_params(param_specs)
+    n = len(combos)
+    typer.echo(f"Sweep: {n} variant(s)  config={strategy.name}  params={param_specs}")
+
+    runs_root = out or (Path(__file__).parents[3] / "runs")
+
+    results = run_sweep(
+        config_path=strategy,
+        param_specs=param_specs,
+        runs_root=runs_root,
+        data_root=_DATA_ROOT,
+    )
+
+    typer.echo(f"\nSweep complete: {len(results)}/{n} variants succeeded.")
+    if results:
+        sweep_id = results[0].get("sweep_id", "?")
+        typer.echo(f"Sweep ID: {sweep_id}")
+        typer.echo("")
+        typer.echo(f"{'Variant':>4}  {'Params':40}  {'Sharpe':>8}  {'Calmar':>8}  {'Trades':>7}")
+        for i, r in enumerate(results, 1):
+            s = r.get("summary", {})
+            sharpe_val = s.get("sharpe", float("nan"))
+            calmar_val = s.get("calmar", float("nan"))
+            trades_val = s.get("total_trades", 0)
+            sh_str = f"{sharpe_val:.3f}" if isinstance(sharpe_val, float) and not (sharpe_val != sharpe_val) else "N/A"
+            ca_str = f"{calmar_val:.3f}" if isinstance(calmar_val, float) and not (calmar_val != calmar_val) else "N/A"
+            params_str = str(r.get("signal_params_override", {}))[:40]
+            typer.echo(f"{i:>4}  {params_str:40}  {sh_str:>8}  {ca_str:>8}  {trades_val:>7}")
+
+        typer.echo(f"\nView results: uv run trading-research leaderboard --filter parent_sweep_id={sweep_id}")
+
+
+# ---------------------------------------------------------------------------
+# leaderboard
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def leaderboard(
+    filter: Annotated[
+        Optional[list[str]],
+        typer.Option("--filter", help="'key=value' filter, repeatable (AND logic)."),
+    ] = None,
+    sort: Annotated[str, typer.Option(help="Metric to sort by (default: calmar).")] = "calmar",
+    ascending: Annotated[bool, typer.Option("--ascending", help="Sort ascending (default: descending).")] = False,
+    html_out: Annotated[
+        Optional[Path],
+        typer.Option("--html-out", help="Write HTML leaderboard to this path."),
+    ] = None,
+    out: Annotated[Optional[Path], typer.Option(help="Override runs/ root.")] = None,
+) -> None:
+    """Show a ranked leaderboard of all recorded trials.
+
+    Filter and sort by any trial field.  Optionally write an HTML report.
+
+    Examples:
+        uv run trading-research leaderboard --filter mode=exploration --sort calmar
+        uv run trading-research leaderboard --filter instrument=6A --sort sharpe
+        uv run trading-research leaderboard --filter parent_sweep_id=abc12345 \\
+            --sort calmar --html-out outputs/leaderboard.html
+    """
+    from trading_research.eval.leaderboard import build_leaderboard, format_table, generate_html
+
+    runs_root = out or (Path(__file__).parents[3] / "runs")
+    registry_path = runs_root / ".trials.json"
+
+    filter_specs: list[str] = filter or []
+
+    trials = build_leaderboard(
+        registry_path=registry_path,
+        filters=filter_specs,
+        sort_key=sort,
+        ascending=ascending,
+    )
+
+    if not trials:
+        typer.echo("No trials found matching the given filters.")
+        if filter_specs:
+            typer.echo(f"  Filters applied: {filter_specs}")
+        raise typer.Exit(code=0)
+
+    typer.echo(f"\nLeaderboard — {len(trials)} trial(s)  sort={sort}  filters={filter_specs or 'none'}\n")
+    typer.echo(format_table(trials, sort_key=sort))
+
+    if html_out:
+        html = generate_html(trials, sort_key=sort, filters=filter_specs)
+        html_out.parent.mkdir(parents=True, exist_ok=True)
+        html_out.write_text(html, encoding="utf-8")
+        typer.echo(f"\nHTML written: {html_out}")
+
 
 if __name__ == "__main__":
     main()

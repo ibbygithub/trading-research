@@ -56,6 +56,16 @@ class Trial:
     n_obs: int | None = None
     skewness: float | None = None
     kurtosis_pearson: float | None = None
+    # Session-35 fields: exploration/validation tagging and sweep grouping.
+    mode: str = "validation"
+    parent_sweep_id: str | None = None
+    # Performance metrics stored at record time for leaderboard use.
+    calmar: float | None = None
+    max_drawdown_usd: float | None = None
+    win_rate: float | None = None
+    total_trades: int | None = None
+    instrument: str | None = None
+    timeframe: str | None = None
 
 
 def _get_code_version() -> str:
@@ -117,6 +127,15 @@ def _dict_to_trial(d: dict) -> Trial:
         n_obs=d.get("n_obs"),
         skewness=d.get("skewness"),
         kurtosis_pearson=d.get("kurtosis_pearson"),
+        # Session-35 fields — default to "validation"/None for backwards compat.
+        mode=d.get("mode", "validation"),
+        parent_sweep_id=d.get("parent_sweep_id"),
+        calmar=d.get("calmar"),
+        max_drawdown_usd=d.get("max_drawdown_usd"),
+        win_rate=d.get("win_rate"),
+        total_trades=d.get("total_trades"),
+        instrument=d.get("instrument"),
+        timeframe=d.get("timeframe"),
     )
 
 
@@ -154,6 +173,14 @@ def record_trial(
     n_obs: int | None = None,
     skewness: float | None = None,
     kurtosis_pearson: float | None = None,
+    mode: str = "validation",
+    parent_sweep_id: str | None = None,
+    calmar: float | None = None,
+    max_drawdown_usd: float | None = None,
+    win_rate: float | None = None,
+    total_trades: int | None = None,
+    instrument: str | None = None,
+    timeframe: str | None = None,
 ) -> None:
     """Append a trial entry to the registry.
 
@@ -177,6 +204,7 @@ def record_trial(
         "code_version": code_version,
         "featureset_hash": featureset_hash,
         "cohort_label": cohort_label or code_version,
+        "mode": mode,
     }
     if n_obs is not None:
         entry["n_obs"] = n_obs
@@ -184,6 +212,20 @@ def record_trial(
         entry["skewness"] = skewness
     if kurtosis_pearson is not None:
         entry["kurtosis_pearson"] = kurtosis_pearson
+    if parent_sweep_id is not None:
+        entry["parent_sweep_id"] = parent_sweep_id
+    if calmar is not None:
+        entry["calmar"] = float(calmar)
+    if max_drawdown_usd is not None:
+        entry["max_drawdown_usd"] = float(max_drawdown_usd)
+    if win_rate is not None:
+        entry["win_rate"] = float(win_rate)
+    if total_trades is not None:
+        entry["total_trades"] = int(total_trades)
+    if instrument is not None:
+        entry["instrument"] = instrument
+    if timeframe is not None:
+        entry["timeframe"] = timeframe
 
     raw.append(entry)
     _write_registry(tf, raw)
@@ -228,6 +270,9 @@ def migrate_trials(path: Path, backup: bool = True) -> None:
         trial.setdefault("code_version", "pre-hardening")
         trial.setdefault("cohort_label", "pre-hardening")
         trial.setdefault("featureset_hash", None)
+        # Session-35 migration: tag all existing trials as validation by default.
+        trial.setdefault("mode", "validation")
+        trial.setdefault("parent_sweep_id", None)
 
     _write_registry(path, raw)
     logger.info("migrate_trials: complete", n_trials=len(raw), path=str(path))
