@@ -111,7 +111,14 @@ def _real_runner(
 
     This is the real implementation used by the CLI.  Tests inject their own
     callable via the ``runner`` parameter of ``run_sweep()``.
+
+    Supports three dispatch paths (same as the ``backtest`` CLI command):
+    - YAML template  — config has an ``entry:`` block; overrides go into ``knobs``.
+    - Registered template — config has a ``template:`` key.
+    - Python module  — config has a ``signal_module:`` key; overrides go into ``signal_params``.
     """
+    import pandas as pd
+
     from trading_research.backtest.engine import BacktestConfig, BacktestEngine
     from trading_research.backtest.fills import FillModel
     from trading_research.backtest.signals import SignalFrame
@@ -124,8 +131,21 @@ def _real_runner(
     strategy_id = cfg_raw["strategy_id"]
     symbol = cfg_raw["symbol"]
     timeframe = cfg_raw.get("timeframe", "5m")
-    signal_module_path = cfg_raw["signal_module"]
     bt_cfg_raw = cfg_raw.get("backtest", {})
+
+    has_entry = "entry" in cfg_raw
+    template_name = cfg_raw.get("template")
+    signal_module_path = cfg_raw.get("signal_module")
+
+    dispatch_count = sum([has_entry, bool(template_name), bool(signal_module_path)])
+    if dispatch_count == 0:
+        raise ValueError(
+            f"Config {config_path.name} must have one of 'entry', 'template', or 'signal_module'."
+        )
+    if dispatch_count > 1:
+        raise ValueError(
+            f"Config {config_path.name} may have only one of 'entry', 'template', or 'signal_module'."
+        )
 
     fill_model_str = bt_cfg_raw.get("fill_model", "next_bar_open")
     fill_model = FillModel(fill_model_str)
@@ -154,26 +174,65 @@ def _real_runner(
             f"No features parquet found for {symbol} {timeframe}: {e}"
         ) from e
 
-    import pandas as pd
-
     bars = pd.read_parquet(feat_path, engine="pyarrow")
     bars = bars.set_index("timestamp_utc")
     bars.index = pd.DatetimeIndex(bars.index, tz="UTC")
     bars = bars.sort_index()
 
-    mod = importlib.import_module(signal_module_path)
+    strategy_obj = None
 
-    base_params = cfg_raw.get("signal_params", {})
-    merged_params = {**base_params, **signal_params_override}
-    if merged_params:
-        signals_df = mod.generate_signals(bars, **merged_params)
+    if has_entry:
+        # YAML template: overrides patch into knobs before constructing strategy.
+        from trading_research.strategies.template import YAMLStrategy
+
+        merged_cfg = dict(cfg_raw)
+        base_knobs = dict(cfg_raw.get("knobs", {}))
+        merged_cfg["knobs"] = {**base_knobs, **signal_params_override}
+        strategy_obj = YAMLStrategy.from_config(merged_cfg)
+        signals_df = strategy_obj.generate_signals_df(bars)
+
+    elif template_name:
+        import contextlib
+        import importlib as _il
+
+        from trading_research.backtest.walkforward import _signals_to_dataframe
+        from trading_research.core.instruments import InstrumentRegistry
+        from trading_research.core.templates import _GLOBAL_REGISTRY
+
+        template_module = cfg_raw.get("template_module")
+        if template_module:
+            try:
+                _il.import_module(template_module)
+            except ImportError as exc:
+                raise ImportError(
+                    f"Cannot import template_module '{template_module}': {exc}"
+                ) from exc
+        else:
+            for _m in ["trading_research.strategies.vwap_reversion_v1"]:
+                with contextlib.suppress(ImportError):
+                    _il.import_module(_m)
+
+        base_knobs = dict(cfg_raw.get("knobs", {}))
+        merged_knobs = {**base_knobs, **signal_params_override}
+        strategy_obj = _GLOBAL_REGISTRY.instantiate(template_name, merged_knobs)
+        core_inst = InstrumentRegistry().get(symbol)
+        raw_signals = strategy_obj.generate_signals(bars, bars, core_inst)
+        signals_df = _signals_to_dataframe(raw_signals, bars.index)
+
     else:
-        signals_df = mod.generate_signals(bars)
+        # Legacy Python signal_module path.
+        mod = importlib.import_module(signal_module_path)
+        base_params = cfg_raw.get("signal_params", {})
+        merged_params = {**base_params, **signal_params_override}
+        if merged_params:
+            signals_df = mod.generate_signals(bars, **merged_params)
+        else:
+            signals_df = mod.generate_signals(bars)
 
     sf = SignalFrame(signals_df)
     sf.validate()
 
-    engine = BacktestEngine(bt_config, inst)
+    engine = BacktestEngine(bt_config, inst, strategy=strategy_obj)
     result = engine.run(bars, signals_df)
 
     summary = compute_summary(result)

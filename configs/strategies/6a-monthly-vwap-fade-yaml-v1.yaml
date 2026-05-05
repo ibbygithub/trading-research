@@ -1,0 +1,52 @@
+# 6A 60m Monthly VWAP Band Fade — YAML strategy
+#
+# Hypothesis H4 (session 38): fade prices at institutional-anchor-level
+# dislocations from the monthly VWAP. Targets the mean-reversion pull
+# that develops when prices extend too far from the month's cost basis.
+#
+# Entry: price below/above monthly VWAP by band_mult standard deviations,
+#        only when ADX < adx_max (non-trending monthly regime).
+# Stop:  ATR-based from signal-bar close.
+# Target: back to monthly VWAP (the anchor).
+#
+# vwap_monthly_std_1_0 is the raw 1.0-sigma standard deviation value.
+# band_mult scales it: band_mult=2.0 means the 2-sigma band.
+
+strategy_id: 6a-monthly-vwap-fade-yaml-v1
+symbol: 6A
+timeframe: 60m
+description: >
+  6A 60m monthly VWAP band fade. Fades prices at band_mult standard deviations
+  from the monthly VWAP, targeting reversion back to the monthly VWAP anchor.
+  ADX gate keeps entries out of strongly trending months.
+
+knobs:
+  band_mult: 2.0       # std deviations from monthly VWAP to trigger entry
+  stop_atr_mult: 1.5
+  adx_max: 25.0        # skip entry when daily ADX exceeds this (trending month)
+
+entry:
+  long:
+    all:
+      - "close < vwap_monthly - band_mult * vwap_monthly_std_1_0"
+      - "adx_14 < adx_max"
+  short:
+    all:
+      - "close > vwap_monthly + band_mult * vwap_monthly_std_1_0"
+      - "adx_14 < adx_max"
+
+exits:
+  stop:
+    long:  "close - stop_atr_mult * atr_14"
+    short: "close + stop_atr_mult * atr_14"
+  target:
+    long:  "vwap_monthly"
+    short: "vwap_monthly"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: false        # monthly dislocations may take multiple days to revert
+  max_holding_bars: 96   # ~4 trading days at 60m — generous but bounded
+  use_ofi_resolution: false
+  quantity: 1

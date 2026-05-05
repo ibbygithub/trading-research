@@ -1,0 +1,57 @@
+# ZN 15m MACD Histogram Momentum — YAML strategy
+#
+# Hypothesis H5 (session 38): momentum strategy for ZN after mean reversion
+# definitively failed (sprint 33 gate verdict). MACD histogram positive AND
+# accelerating (slope > 0) AND price above daily EMA(50) = confirmed momentum.
+#
+# This is the opposite trade class from everything tried previously on ZN.
+#
+# Entry: macd_hist > hist_min (positive, above noise threshold)
+#        AND macd_hist_slope > 0 (histogram accelerating upward)
+#        AND close > daily_ema_50 (daily trend aligned)
+# Stop:  ATR-based from signal-bar close.
+# Target: ATR-based (R:R via target_atr_mult).
+#
+# hist_min filters out near-zero histogram values that represent noise rather
+# than real momentum. Swept from 0.0 (any positive) to 0.005 (meaningful).
+
+strategy_id: zn-macd-momentum-yaml-v1
+symbol: ZN
+timeframe: 15m
+description: >
+  ZN 15m MACD histogram momentum. Long when histogram is positive, accelerating,
+  and price is above the daily 50-EMA. Mirror for short. Momentum-following
+  after mean reversion failed definitively on ZN.
+
+knobs:
+  hist_min: 0.001      # minimum histogram value; 0.0 = any positive, 0.005 = meaningful
+  stop_atr_mult: 1.5
+  target_atr_mult: 2.0
+
+entry:
+  long:
+    all:
+      - "macd_hist > hist_min"
+      - "macd_hist_slope > 0"
+      - "close > daily_ema_50"
+  short:
+    all:
+      - "macd_hist < -hist_min"
+      - "macd_hist_slope < 0"
+      - "close < daily_ema_50"
+
+exits:
+  stop:
+    long:  "close - stop_atr_mult * atr_14"
+    short: "close + stop_atr_mult * atr_14"
+  target:
+    long:  "close + target_atr_mult * atr_14"
+    short: "close - target_atr_mult * atr_14"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: true
+  max_holding_bars: null
+  use_ofi_resolution: false
+  quantity: 1
