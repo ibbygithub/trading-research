@@ -1,0 +1,48 @@
+# 6A 60m Monthly VWAP Band Fade — v2b (no time window)
+#
+# Same as v2 but with the time_window gate removed.
+# Purpose: isolate the effect of target_mult from the time-of-day effect.
+# Session-39: v2 with 08:00–17:00 UTC gate reduced trades from 170 → 52.
+# AUD/USD's large mean-reversion moves primarily occur in Asian hours
+# (22:00–08:00 UTC), so the gate was filtering the signal, not the noise.
+# This variant tests target_mult without the session restriction.
+
+strategy_id: 6a-monthly-vwap-fade-yaml-v2b
+symbol: 6A
+timeframe: 60m
+description: >
+  6A 60m monthly VWAP band fade v2b. No time window — entries at any hour.
+  Sweeps target_mult to find the R:R sweet spot. Band_mult, stop_atr_mult,
+  and adx_max fixed at session-38 optimal values.
+
+knobs:
+  band_mult: 3.0
+  stop_atr_mult: 2.0
+  adx_max: 20.0
+  target_mult: 0.5          # default; sweep 0.5,1.0,1.5,2.0,2.5
+
+entry:
+  long:
+    all:
+      - "close < vwap_monthly - band_mult * vwap_monthly_std_1_0"
+      - "adx_14 < adx_max"
+  short:
+    all:
+      - "close > vwap_monthly + band_mult * vwap_monthly_std_1_0"
+      - "adx_14 < adx_max"
+
+exits:
+  stop:
+    long:  "close - stop_atr_mult * atr_14"
+    short: "close + stop_atr_mult * atr_14"
+  target:
+    long:  "vwap_monthly - target_mult * vwap_monthly_std_1_0"
+    short: "vwap_monthly + target_mult * vwap_monthly_std_1_0"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: false
+  max_holding_bars: 96
+  use_ofi_resolution: false
+  quantity: 1
