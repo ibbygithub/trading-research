@@ -1130,7 +1130,7 @@ time without an automated cleanup:
   pruned. Currently small but grows unbounded.
 
 The cleanup CLI commands specified in Chapter 56.5 are designed to
-manage exactly these categories: `clean clean --keep-latest`, `clean
+manage exactly these categories: `clean canonical --keep-latest`, `clean
 runs --keep-last N`, `clean trials --keep-mode validation`.
 
 ### 4.12.5 Sizing guidance — when to act
@@ -1138,7 +1138,7 @@ runs --keep-last N`, `clean trials --keep-mode validation`.
 | Total `data/` size | Action |
 |--------------------|--------|
 | Under 5 GB | No action needed |
-| 5–10 GB | Run `clean clean --keep-latest --dry-run` to preview, then act |
+| 5–10 GB | Run `clean canonical --keep-latest --dry-run` to preview, then act |
 | 10–25 GB | Add `clean runs --older-than 90d --dry-run` to the cleanup pass |
 | Over 25 GB | Audit per-instrument footprint via `inventory`; consider archiving cold instruments |
 

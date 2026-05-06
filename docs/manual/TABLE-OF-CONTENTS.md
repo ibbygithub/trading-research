@@ -1064,7 +1064,7 @@ the same amount. The detailed breakdown by layer is in §4.13.
   originals.
 - **`trading-research clean runs --older-than 90d`** — bulk archive runs
   older than the cutoff.
-- **`trading-research clean clean --keep-latest`** — for each
+- **`trading-research clean canonical --keep-latest`** — for each
   (symbol, timeframe, adjustment) tuple, keep only the parquet whose
   date suffix is the most recent and reap the older date-stamped
   variants. Manifest-aware: refuses to delete a file whose manifest is
@@ -1256,6 +1256,7 @@ required.
 
 | Chapter | Item | Work required | Sessions | Priority |
 |---------|------|---------------|----------|----------|
+| 5 | Consolidate instrument loaders | Migrate `data.instruments` reads off `configs/instruments.yaml`; both code paths read from `configs/instruments_core.yaml`; delete `configs/instruments.yaml` and the legacy nested-schema loader | 0.5 | v1.0 |
 | 6.5 | Schema migration tooling | Migration helper + tests; backfill policy | 1 | v1.0 |
 | 11.7 / 13.4 / 49.15 | `validate-strategy` CLI | Lint a YAML, dry-run on 100 bars, report | 1 | v1.0 |
 | 49.16 | `status` CLI | Show data freshness, last 5 backtests, registered strategies | 0.5 | v1.0 |
