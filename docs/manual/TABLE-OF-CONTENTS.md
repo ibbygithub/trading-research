@@ -1056,7 +1056,7 @@ the same amount. The detailed breakdown by layer is in §4.13.
 - `runs/.trials.json` grows by one entry per trial; never pruned.
 - `outputs/` grows with leaderboards, exploration results, work logs.
 
-56.5.3 Cleanup CLI commands **[GAP]** — specification for what's needed:
+56.5.3 Cleanup CLI commands **[EXISTS]** — five subcommands implemented:
 
 - **`trading-research clean runs --strategy <id> --keep-last N`** — keep
   the N most recent run timestamps for a strategy, archive the rest to
@@ -1078,7 +1078,7 @@ the same amount. The detailed breakdown by layer is in §4.13.
 - **`trading-research clean dryrun`** mode (default) — print what would
   be deleted, including total bytes reclaimed, without acting.
 
-56.5.4 Retention policy (default) **[GAP]** —
+56.5.4 Retention policy (default) **[EXISTS]** —
 
 - RAW: never automatically deleted (re-download cost is high).
 - CLEAN: keep the latest date-stamped variant per (symbol, timeframe,
@@ -1262,7 +1262,7 @@ required.
 | 49.16 | `status` CLI | Show data freshness, last 5 backtests, registered strategies | 0.5 | v1.0 |
 | 35.2 | Daily loss limit in BacktestEngine | Hook into engine, fail-fast trade rejection | 0.5 | v1.0 |
 | 52.1–52.4 | Logging coverage + run_id + file logger | Bring all hot-path modules under structlog; consistent fields; rotating file logger; tail-log subcommand | 1 | v1.0 |
-| 56.5.3 | Storage cleanup CLI subcommands (`clean runs/clean/features/trials`) | Implement five `clean` subcommands with dry-run default, archive-then-delete behaviour, manifest-aware safety | 1 | v1.0 |
+| ~~56.5.3~~ | ~~Storage cleanup CLI subcommands~~ | **Done — session 43** | 0 | v1.0 |
 | 56.5.6 | Per-instrument growth-rate forecast | Document and surface in `status` output | 0.25 | v1.0 |
 | 56.3 | Schema migration runbook | Procedure documentation post-tooling | 0.25 | v1.0 |
 | 54.1 / 54.3 | Cold-start runbook | `docs/usage.md` written + verified end-to-end | 0.5 | v1.0 |
@@ -1302,8 +1302,8 @@ The v1.0 backlog, in priority order:
    32.4, 8.6) — one session.
 2. **Ship the deferred CLIs** `validate-strategy`, `status`,
    `migrate-trials` (chapters 49.15, 49.16, 32.5) — one session.
-3. **Storage management & cleanup** (chapter 56.5: clean CLI subcommands,
-   retention policy, growth-rate forecast) — one session.
+3. ~~**Storage management & cleanup** (chapter 56.5: clean CLI subcommands,
+   retention policy, growth-rate forecast) — one session.~~ **Done — session 43**
 4. **Logging and observability** (chapter 52: structlog hot-path coverage,
    run_id, rotating file logger, tail-log) — one session.
 5. **Cold-start runbook + quick-start guide** (chapters 54, front matter) —

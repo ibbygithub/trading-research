@@ -31,6 +31,9 @@ app = typer.Typer(
 rebuild_app = typer.Typer(help="Rebuild CLEAN or FEATURES data from sources.", no_args_is_help=True)
 app.add_typer(rebuild_app, name="rebuild")
 
+from trading_research.cli.clean import clean_app
+app.add_typer(clean_app, name="clean")
+
 _DATA_ROOT = Path(__file__).parents[3] / "data"
 
 
