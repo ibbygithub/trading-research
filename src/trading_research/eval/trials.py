@@ -66,6 +66,11 @@ class Trial:
     total_trades: int | None = None
     instrument: str | None = None
     timeframe: str | None = None
+    # Bootstrap CI bounds (90%) — populated when available.
+    sharpe_ci_lo: float | None = None
+    sharpe_ci_hi: float | None = None
+    calmar_ci_lo: float | None = None
+    calmar_ci_hi: float | None = None
 
 
 def _get_code_version() -> str:
@@ -136,6 +141,10 @@ def _dict_to_trial(d: dict) -> Trial:
         total_trades=d.get("total_trades"),
         instrument=d.get("instrument"),
         timeframe=d.get("timeframe"),
+        sharpe_ci_lo=d.get("sharpe_ci_lo"),
+        sharpe_ci_hi=d.get("sharpe_ci_hi"),
+        calmar_ci_lo=d.get("calmar_ci_lo"),
+        calmar_ci_hi=d.get("calmar_ci_hi"),
     )
 
 
@@ -181,6 +190,10 @@ def record_trial(
     total_trades: int | None = None,
     instrument: str | None = None,
     timeframe: str | None = None,
+    sharpe_ci_lo: float | None = None,
+    sharpe_ci_hi: float | None = None,
+    calmar_ci_lo: float | None = None,
+    calmar_ci_hi: float | None = None,
 ) -> None:
     """Append a trial entry to the registry.
 
@@ -226,6 +239,14 @@ def record_trial(
         entry["instrument"] = instrument
     if timeframe is not None:
         entry["timeframe"] = timeframe
+    if sharpe_ci_lo is not None and math.isfinite(sharpe_ci_lo):
+        entry["sharpe_ci_lo"] = float(sharpe_ci_lo)
+    if sharpe_ci_hi is not None and math.isfinite(sharpe_ci_hi):
+        entry["sharpe_ci_hi"] = float(sharpe_ci_hi)
+    if calmar_ci_lo is not None and math.isfinite(calmar_ci_lo):
+        entry["calmar_ci_lo"] = float(calmar_ci_lo)
+    if calmar_ci_hi is not None and math.isfinite(calmar_ci_hi):
+        entry["calmar_ci_hi"] = float(calmar_ci_hi)
 
     raw.append(entry)
     _write_registry(tf, raw)

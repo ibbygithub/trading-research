@@ -679,13 +679,36 @@ def backtest(
     )
     typer.echo(f"Summary written: {summary_path}")
 
+    # --- Compute DSR for the summary output ---
+    from trading_research.eval.trials import record_trial, count_trials
+    from trading_research.eval.stats import deflated_sharpe_ratio
+    import numpy as np
+    from scipy import stats as scipy_stats
+
+    n_trials = count_trials(runs_root=out_root, strategy_id=strategy_id)
+    net_pnl = result.trades["net_pnl_usd"].values.astype(float)
+    finite_pnl = net_pnl[np.isfinite(net_pnl)]
+    n_obs = len(finite_pnl)
+    skew = kurtosis = float("nan")
+    if n_obs >= 4:
+        skew = float(scipy_stats.skew(finite_pnl))
+        kurtosis = float(scipy_stats.kurtosis(finite_pnl, fisher=False))
+    dsr = deflated_sharpe_ratio(
+        sharpe=summary.get("sharpe", float("nan")),
+        n_obs=n_obs,
+        n_trials=max(n_trials, 1),
+        skewness=skew if math.isfinite(skew) else 0.0,
+        kurtosis_pearson=kurtosis if math.isfinite(kurtosis) else 3.0,
+    )
+
     # --- Print summary table with CIs ---
     typer.echo("")
-    typer.echo(format_with_ci(summary, cis))
+    typer.echo(format_with_ci(summary, cis, dsr=dsr, n_trials=n_trials))
 
-    # --- Record trial ---
-    from trading_research.eval.trials import record_trial
+    # --- Record trial (with CI bounds for leaderboard) ---
     trial_group_val: str | None = None  # default: use strategy_id
+    sharpe_ci = cis.get("sharpe_ci", (None, None))
+    calmar_ci = cis.get("calmar_ci", (None, None))
     record_trial(
         runs_root=out_root,
         strategy_id=strategy_id,
@@ -698,6 +721,10 @@ def backtest(
         total_trades=summary.get("total_trades"),
         instrument=symbol,
         timeframe=timeframe,
+        sharpe_ci_lo=sharpe_ci[0],
+        sharpe_ci_hi=sharpe_ci[1],
+        calmar_ci_lo=calmar_ci[0],
+        calmar_ci_hi=calmar_ci[1],
     )
 
 

@@ -151,6 +151,45 @@ class TestGenerateReport:
         with pytest.raises(FileNotFoundError):
             generate_report(run_dir)
 
+    def test_headline_contains_dsr(self, tmp_path):
+        run_dir = _make_run_dir(tmp_path)
+        paths = generate_report(run_dir)
+        html = paths.report.read_text(encoding="utf-8")
+        assert "Deflated Sharpe (DSR)" in html
+
+    def test_headline_metrics_have_flag_field(self, tmp_path):
+        run_dir = _make_run_dir(tmp_path)
+        from trading_research.eval.report import _compute_headline_metrics
+        import json
+        summary = json.loads((run_dir / "summary.json").read_text())
+        import pandas as pd
+        trades = pd.read_parquet(run_dir / "trades.parquet")
+        metrics = _compute_headline_metrics(summary, trades, run_dir=run_dir)
+        for m in metrics:
+            assert "flag" in m
+
+    def test_walkforward_fold_variance(self, tmp_path):
+        """Fold variance is computed when walkforward.parquet exists."""
+        run_dir = _make_run_dir(tmp_path)
+        # Create a synthetic walkforward.parquet.
+        import pandas as pd
+        wf_df = pd.DataFrame({
+            "fold": [1, 2, 3],
+            "trades": [30, 25, 35],
+            "calmar": [0.8, -0.2, 1.1],
+            "sharpe": [1.0, 0.3, 1.5],
+            "win_rate": [0.55, 0.45, 0.60],
+            "test_start": pd.to_datetime(["2024-01-01", "2024-06-01", "2025-01-01"]),
+            "test_end": pd.to_datetime(["2024-05-31", "2024-12-31", "2025-06-30"]),
+        })
+        wf_df.to_parquet(run_dir / "walkforward.parquet", index=False)
+        from trading_research.eval.report import _build_walkforward_section
+        result = _build_walkforward_section(run_dir, lambda fig: "")
+        assert result["available"]
+        assert "calmar" in result["fold_variance"]
+        assert result["fold_variance"]["calmar"]["std"] > 0
+        assert result["fold_variance"]["calmar"]["positive_folds"] == 2
+
 
 class TestAddDerivedColumns:
     """Unit tests for _add_derived_columns()."""

@@ -35,7 +35,9 @@ _COLUMNS: list[tuple[str, str]] = [
     ("instrument", "Instrument"),
     ("timeframe", "Timeframe"),
     ("calmar", "Calmar"),
+    ("calmar_ci", "Calmar CI"),
     ("sharpe", "Sharpe"),
+    ("sharpe_ci", "Sharpe CI"),
     ("max_drawdown_usd", "Max DD (USD)"),
     ("win_rate", "Win Rate"),
     ("total_trades", "Trades"),
@@ -55,7 +57,27 @@ _FILTERABLE_FIELDS = {
 
 def _trial_value(trial: Trial, field: str) -> Any:
     """Return the value of a trial field, or None if the field doesn't exist."""
+    # Synthetic CI fields combine lo/hi into a display string.
+    if field == "calmar_ci":
+        lo = getattr(trial, "calmar_ci_lo", None)
+        hi = getattr(trial, "calmar_ci_hi", None)
+        return _format_ci_range(lo, hi)
+    if field == "sharpe_ci":
+        lo = getattr(trial, "sharpe_ci_lo", None)
+        hi = getattr(trial, "sharpe_ci_hi", None)
+        return _format_ci_range(lo, hi)
     return getattr(trial, field, None)
+
+
+def _format_ci_range(lo: float | None, hi: float | None) -> str | None:
+    """Format a CI range as '[lo, hi]' or None if unavailable."""
+    if lo is None or hi is None:
+        return None
+    if isinstance(lo, float) and math.isnan(lo):
+        return None
+    if isinstance(hi, float) and math.isnan(hi):
+        return None
+    return f"[{lo:.2f}, {hi:.2f}]"
 
 
 def _parse_filter(spec: str) -> tuple[str, str]:

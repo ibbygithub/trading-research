@@ -449,11 +449,11 @@ backtest time.
 `pipeline_integrity.generate_pipeline_integrity_report` produces and how
 the manual operator should read it.
 
-17.5 Headline statistical reporting **[PARTIAL]** — currently the report
-shows raw Sharpe, Calmar, win-rate point estimates. Deflated Sharpe is
-computed in `eval/stats.py` but not in the report header. CIs are computed
-but only on demand. **[GAP — surface DSR, CI flags, fold variance in the
-report header]**
+17.5 Headline statistical reporting **[EXISTS]** — DSR appears in the §2
+headline alongside raw Sharpe; CI-includes-zero flags rendered on every
+CI-eligible metric; fold variance table (mean, std, CV, min, max, +ve
+folds) in §24 when walkforward.parquet exists; DSR line in
+`format_with_ci` text output.
 
 ## Chapter 18 — The Replay App (~ 3 pages)
 
@@ -552,9 +552,9 @@ tells you.
 majority of folds" — and the cases when the literal rule fails the
 spirit (huge fold variance, sub-50% WR fold). How to read the gate.
 
-22.7 Walk-forward report integration **[PARTIAL]** — fold table is in
-the parquet but not in the HTML report. **[GAP — add fold-variance
-section to the Trader's Desk report]**
+22.7 Walk-forward report integration **[EXISTS]** — §24 of the HTML
+report shows per-fold OOS metrics table, OOS equity curve, and fold
+variance table (mean, std, CV, min, max, +ve folds per metric).
 
 ## Chapter 23 — Deflated Sharpe (~ 4 pages)
 
@@ -573,10 +573,9 @@ trials within a group. The `parent_sweep_id` field, the `mode` field
 23.4 Reading a deflated Sharpe **[EXISTS]** — what a raw 1.8 deflating
 to 0.4 actually means; when to walk away.
 
-23.5 Surfacing DSR in reports **[PARTIAL]** — the metric is computed in
-`eval/stats.py` but is not in the `format_with_ci` output or the HTML
-report header. **[GAP — surface DSR alongside raw Sharpe in headline
-output]**
+23.5 Surfacing DSR in reports **[EXISTS]** — DSR appears in the
+`format_with_ci` text output (with n_trials count) and in the §2
+headline metrics of the HTML report alongside raw Sharpe.
 
 ## Chapter 24 — Stationarity Suite (~ 3 pages)
 
@@ -698,9 +697,9 @@ why this matters for DSR.
 32.3 The `leaderboard` CLI command **[EXISTS]** — filter by any field,
 sort by any metric, write HTML.
 
-32.4 Leaderboard CI surfacing **[PARTIAL]** — currently raw metrics
-only; the leaderboard should show CI ranges per row. **[GAP — add CI
-columns to leaderboard table and HTML]**
+32.4 Leaderboard CI surfacing **[EXISTS]** — `Calmar CI` and `Sharpe CI`
+columns in both text and HTML leaderboard output, showing `[lo, hi]`
+ranges when the trial was recorded with CI bounds.
 
 32.5 Migrating older trials **[PARTIAL]** — eighteen pre-session-35
 trials have `mode="unknown"`; a `migrate_trials` helper exists. **[GAP
@@ -1281,10 +1280,10 @@ required.
 |---------|------|---------------|----------|
 | 8.6 | Feature inventory in `status` | Surface in `status` CLI output | (with status) |
 | 16.5 / 55 | Common-error consolidation | Documentation only | 0.25 |
-| 17.5 | DSR / fold variance / CI flags in report header | Modify `eval/report.py` template | 1 |
-| 22.7 | Walk-forward fold table in report | Add section to HTML report | (with 17.5) |
-| 23.5 | DSR in `format_with_ci` headline | Add line to bootstrap.py output | 0.25 |
-| 32.4 | CI columns in leaderboard | Modify `eval/leaderboard.py` and HTML | 0.5 |
+| ~~17.5~~ | ~~DSR / fold variance / CI flags in report header~~ | **Done — session 46** | 0 |
+| ~~22.7~~ | ~~Walk-forward fold table in report~~ | **Done — session 46** | 0 |
+| ~~23.5~~ | ~~DSR in `format_with_ci` headline~~ | **Done — session 46** | 0 |
+| ~~32.4~~ | ~~CI columns in leaderboard~~ | **Done — session 46** | 0 |
 | 32.5 | `migrate-trials` CLI binding | Wire existing helper to a subcommand | 0.25 |
 
 ### Summary — total estimated remaining work
@@ -1298,8 +1297,9 @@ acceptance and should not block it.
 
 The v1.0 backlog, in priority order:
 
-1. **Surface the existing statistical rigor** (chapters 17.5, 22.7, 23.5,
-   32.4, 8.6) — one session.
+1. ~~**Surface the existing statistical rigor** (chapters 17.5, 22.7, 23.5,
+   32.4, 8.6) — one session.~~ **Done — session 46** (8.6 deferred to
+   `status` CLI session)
 2. **Ship the deferred CLIs** `validate-strategy`, `status`,
    `migrate-trials` (chapters 49.15, 49.16, 32.5) — one session.
 3. ~~**Storage management & cleanup** (chapter 56.5: clean CLI subcommands,
