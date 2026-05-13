@@ -1,0 +1,61 @@
+# ZN 4-hour MACD Zero-Cross Momentum — v1
+#
+# Hypothesis H6 (session 39): ZN momentum exists but 15m is too noisy (H5,
+# session 38: 40k+ trades). This version uses 240m (4-hour) bars and
+# requires a FRESH zero cross — MACD histogram must have crossed zero
+# within bars_lookback bars. This filters out the "histogram positive but
+# declining" regime that is the dominant state at 15m.
+#
+# Entry logic:
+#   Long:  macd_hist turned positive within bars_lookback bars
+#          AND price above daily_ema_50 (trend aligned)
+#   Short: macd_hist turned negative within bars_lookback bars
+#          AND price below daily_ema_50
+#
+# macd_hist_bars_since_zero_cross: feature column counting bars since the
+# last sign change in the MACD histogram. Resets on every cross, so
+# combined with direction filter it approximates "bars since upward cross."
+#
+# Exit: ATR-based symmetric stop/target with R:R > 1 by default.
+# EOD flat off — momentum may develop over multiple sessions.
+
+strategy_id: zn-macd-zero-cross-240m-yaml-v1
+symbol: ZN
+timeframe: 240m
+description: >
+  ZN 4-hour MACD zero-cross momentum. Enter long when MACD histogram
+  crosses above zero within bars_lookback bars, trend aligned (daily EMA50).
+  ATR-scaled stop and target.
+
+knobs:
+  bars_lookback: 2.0        # max bars since zero cross to allow entry
+  stop_atr_mult: 1.5
+  target_atr_mult: 2.0
+
+entry:
+  long:
+    all:
+      - "macd_hist > 0"
+      - "macd_hist_bars_since_zero_cross <= bars_lookback"
+      - "close > daily_ema_50"
+  short:
+    all:
+      - "macd_hist < 0"
+      - "macd_hist_bars_since_zero_cross <= bars_lookback"
+      - "close < daily_ema_50"
+
+exits:
+  stop:
+    long:  "close - stop_atr_mult * atr_14"
+    short: "close + stop_atr_mult * atr_14"
+  target:
+    long:  "close + target_atr_mult * atr_14"
+    short: "close - target_atr_mult * atr_14"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: false           # momentum may persist across sessions
+  max_holding_bars: 30      # ~1 week at 240m (6 bars/day × 5 days)
+  use_ofi_resolution: false
+  quantity: 1

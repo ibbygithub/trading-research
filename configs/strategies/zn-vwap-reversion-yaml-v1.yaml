@@ -1,0 +1,57 @@
+# ZN Session-VWAP Band Reversion with Daily MACD Bias — YAML template port
+#
+# Simplified YAML-template port of the core entry logic from
+# trading_research.strategies.zn_vwap_reversion.
+#
+# The Python module uses a VWAP-crossing exit signal (emit signal=-1 when close
+# crosses back through VWAP). This YAML port substitutes an ATR-based fixed target
+# for simplicity, since the YAML schema expresses static price levels rather than
+# dynamic exit-signal emission. The entry conditions are identical.
+#
+# Entry: price below/above session VWAP +/- 2-sigma band AND daily MACD histogram
+#        confirms directional bias. RTH window only (13:20–20:00 UTC = 08:20–15:00 ET).
+# Stop:  ATR-based distance from signal-bar close.
+# Target: session VWAP at signal time (ZN typically reverts to VWAP intraday).
+#
+# Note on port difference: the original uses vwap_session_std_2_0 (pre-computed
+# 2-sigma VWAP band). The YAML replicates this by referencing that column directly.
+
+strategy_id: zn-vwap-reversion-yaml-v1
+symbol: ZN
+timeframe: 5m
+description: >
+  YAML port of ZN 5m VWAP-band mean reversion with daily MACD directional filter.
+  Long when close < vwap_session - 2-sigma band AND daily MACD histogram > 0;
+  short is the mirror. RTH window (08:20-15:00 ET). ATR-based stop; VWAP as target.
+
+knobs:
+  atr_stop_mult: 2.0     # stop distance in ATR units from signal-bar close
+
+entry:
+  long:
+    all:
+      - "close < vwap_session - vwap_session_std_2_0"   # below lower 2-sigma band
+      - "daily_macd_hist > 0"                           # daily bias: bullish
+  short:
+    all:
+      - "close > vwap_session + vwap_session_std_2_0"   # above upper 2-sigma band
+      - "daily_macd_hist < 0"                           # daily bias: bearish
+  time_window:
+    start_utc: "13:20"   # ZN RTH open (08:20 ET)
+    end_utc:   "20:00"   # ZN RTH close (15:00 ET)
+
+exits:
+  stop:
+    long:  "close - atr_stop_mult * atr_14"
+    short: "close + atr_stop_mult * atr_14"
+  target:
+    long:  "vwap_session"    # mean reversion to VWAP
+    short: "vwap_session"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: true         # always flat overnight on ZN single-instrument
+  max_holding_bars: null
+  use_ofi_resolution: false
+  quantity: 1

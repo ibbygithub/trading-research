@@ -63,7 +63,18 @@
       "Bash(awk '{print $2}')",
       "Bash(.venv/Scripts/python.exe -m pytest --tb=short -q --no-header)",
       "Bash(git push *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(git restore *)",
+      "Bash(git clean *)",
+      "Bash(python -c \"import yaml; d=yaml.safe_load\\(open\\('C:/git/work/Trading-research/configs/instruments.yaml'\\)\\); print\\('Instruments:', list\\(d.get\\('instruments',{}\\).keys\\(\\)\\)\\)\")",
+      "Bash(git tag -a manual-v0.2-draft -m 'Trading Desk Operator'\\\\''s Manual — v0.2-draft *)",
+      "Bash(findstr /C:\"passed\" /C:\"failed\" /C:\"error\" /C:\"skip\")",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\toddi\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--git-work-Trading-research\\\\c4186799-9c2b-4524-b648-949c497701b2\\\\tasks\\\\bjr33l1ch.output\" | Where-Object { $_ -match '\\\\d+ passed' })",
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\toddi\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--git-work-Trading-research\\\\c4186799-9c2b-4524-b648-949c497701b2\\\\tasks\\\\bjr33l1ch.output\"\\)[-4..-1] -join \"`n\")",
+      "Bash(python -c \"from datetime import datetime; print\\(datetime.utcnow\\(\\).strftime\\('%Y-%m-%d %H:%M'\\)\\)\")",
+      "Bash(git stash *)",
+      "Bash(git branch *)",
+      "Bash(git status *)"
     ],
     "defaultMode": "acceptEdits"
   },

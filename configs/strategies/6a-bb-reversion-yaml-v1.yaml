@@ -1,0 +1,51 @@
+# 6A 15m Bollinger Band Mean Reversion — YAML strategy
+#
+# Hypothesis H3 (session 38): fade bb_pct_b extremes when RSI confirms
+# oversold/overbought condition. More mechanical than VWAP-anchored fade.
+#
+# Entry: price outside BB bands (bb_pct_b < 0 = below lower, > 1 = above upper)
+#        AND RSI confirms oversold/overbought condition.
+# Stop:  ATR-based distance from signal-bar close.
+# Target: ATR-based distance (R:R set by target_atr_mult knob).
+#
+# No time window — BB dislocations can occur at any time of day.
+
+strategy_id: 6a-bb-reversion-yaml-v1
+symbol: 6A
+timeframe: 15m
+description: >
+  6A 15m Bollinger Band mean reversion. Fades prices outside the 20-bar BB
+  (bb_pct_b < 0 for long, > 1 for short) when RSI confirms the extreme.
+  RSI thresholds and R:R are swept in session 38.
+
+knobs:
+  rsi_oversold: 35.0     # long when rsi_14 < this
+  rsi_overbought: 65.0   # short when rsi_14 > this
+  stop_atr_mult: 1.5
+  target_atr_mult: 2.0
+
+entry:
+  long:
+    all:
+      - "bb_pct_b < 0.0"
+      - "rsi_14 < rsi_oversold"
+  short:
+    all:
+      - "bb_pct_b > 1.0"
+      - "rsi_14 > rsi_overbought"
+
+exits:
+  stop:
+    long:  "close - stop_atr_mult * atr_14"
+    short: "close + stop_atr_mult * atr_14"
+  target:
+    long:  "close + target_atr_mult * atr_14"
+    short: "close - target_atr_mult * atr_14"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: true
+  max_holding_bars: null
+  use_ofi_resolution: false
+  quantity: 1

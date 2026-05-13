@@ -198,7 +198,7 @@ def generate_report(run_dir: Path, version: str = "v2") -> ReportPaths:
                            config={"displayModeBar": False, "responsive": True})
 
     sections["s1_meta"] = meta
-    sections["s2_metrics"] = _compute_headline_metrics(summary, trades)
+    sections["s2_metrics"] = _compute_headline_metrics(summary, trades, run_dir=run_dir)
 
     sections["s3_equity_html"] = _fig_to_html(_build_equity_chart(equity_series))
     sections["s4_top20_html"] = _build_top20_tables(trades)
@@ -484,28 +484,81 @@ def _fmt(v: object, fmt: str = ".2f") -> str:
     return str(v)
 
 
-def _compute_headline_metrics(summary: dict, trades: pd.DataFrame) -> list[dict]:
-    """Return list of {label, value, highlight} dicts for the metrics table."""
+def _compute_headline_metrics(
+    summary: dict,
+    trades: pd.DataFrame,
+    *,
+    run_dir: Path | None = None,
+) -> list[dict]:
+    """Return list of {label, value, highlight, flag} dicts for the metrics table.
+
+    The flag field is set when a CI includes zero — a visual warning that the
+    metric is statistically indistinguishable from breakeven.
+    """
+    from scipy import stats as scipy_stats
+
     n = len(trades)
     win_rate = summary.get("win_rate", float("nan"))
+
+    # Compute DSR for the header if run_dir is available.
+    dsr_val = float("nan")
+    n_trials = 0
+    if run_dir is not None and not trades.empty:
+        runs_root = run_dir.parent.parent
+        strategy_id = run_dir.parent.name
+        n_trials = count_trials(runs_root=runs_root, strategy_id=strategy_id)
+        net_pnl = trades["net_pnl_usd"].values.astype(float)
+        finite_pnl = net_pnl[np.isfinite(net_pnl)]
+        sharpe = summary.get("sharpe", float("nan"))
+        n_obs = len(finite_pnl)
+        skew = kurtosis = float("nan")
+        if n_obs >= 4:
+            skew = float(scipy_stats.skew(finite_pnl))
+            kurtosis = float(scipy_stats.kurtosis(finite_pnl, fisher=False))
+        dsr_val = deflated_sharpe_ratio(
+            sharpe=sharpe,
+            n_obs=n_obs,
+            n_trials=max(n_trials, 1),
+            skewness=skew if math.isfinite(skew) else 0.0,
+            kurtosis_pearson=kurtosis if math.isfinite(kurtosis) else 3.0,
+        )
+
+    # CI flag helper — warns when CI includes zero.
+    ci_data = summary.get("confidence_intervals", {})
+
+    def _ci_flag(key: str) -> str:
+        ci = ci_data.get(f"{key}_ci")
+        if not ci or len(ci) != 2:
+            return ""
+        lo, hi = ci
+        try:
+            if lo is None or hi is None or math.isnan(float(lo)) or math.isnan(float(hi)):
+                return ""
+        except (TypeError, ValueError):
+            return ""
+        if float(lo) <= 0 <= float(hi):
+            return "⚠ CI includes zero"
+        return ""
+
     rows = [
-        ("Total trades",          f"{n:,}",                        False),
-        ("Win rate",               f"{win_rate:.1%}" if not math.isnan(win_rate) else "N/A", False),
-        ("Profit factor",          _fmt(summary.get("profit_factor")),        False),
-        ("Expectancy (USD)",       _fmt(summary.get("expectancy_usd"), ".2f"), False),
-        ("Expectancy (R)",         _fmt(trades["pnl_r"].mean() if "pnl_r" in trades.columns else float("nan")), False),
-        ("Trades / week",          _fmt(summary.get("trades_per_week"), ".1f"), False),
-        ("Calmar  [headline]",     _fmt(summary.get("calmar")),              True),
-        ("Sharpe (ann.)",          _fmt(summary.get("sharpe")),              False),
-        ("Sortino (ann.)",         _fmt(summary.get("sortino")),             False),
-        ("Max drawdown (USD)",     _fmt(summary.get("max_drawdown_usd"), ".0f"), False),
-        ("Max drawdown (%)",       f"{summary.get('max_drawdown_pct', float('nan')):.1%}" if not math.isnan(summary.get('max_drawdown_pct', float('nan'))) else "N/A", False),
-        ("Drawdown duration (d)",  _fmt(summary.get("drawdown_duration_days"), ".0f"), False),
-        ("Max consec. losses",     str(summary.get("max_consec_losses", "N/A")), False),
-        ("Avg MAE (pts)",          _fmt(summary.get("avg_mae_points")),      False),
-        ("Avg MFE (pts)",          _fmt(summary.get("avg_mfe_points")),      False),
+        ("Total trades",          f"{n:,}",                        False, ""),
+        ("Win rate",               f"{win_rate:.1%}" if not math.isnan(win_rate) else "N/A", False, ""),
+        ("Profit factor",          _fmt(summary.get("profit_factor")),        False, _ci_flag("profit_factor")),
+        ("Expectancy (USD)",       _fmt(summary.get("expectancy_usd"), ".2f"), False, _ci_flag("expectancy_usd")),
+        ("Expectancy (R)",         _fmt(trades["pnl_r"].mean() if "pnl_r" in trades.columns else float("nan")), False, ""),
+        ("Trades / week",          _fmt(summary.get("trades_per_week"), ".1f"), False, ""),
+        ("Calmar  [headline]",     _fmt(summary.get("calmar")),              True, _ci_flag("calmar")),
+        ("Sharpe (ann.)",          _fmt(summary.get("sharpe")),              False, _ci_flag("sharpe")),
+        ("Deflated Sharpe (DSR)",  _fmt(dsr_val) if math.isfinite(dsr_val) else "N/A",  False, ""),
+        ("Sortino (ann.)",         _fmt(summary.get("sortino")),             False, _ci_flag("sortino")),
+        ("Max drawdown (USD)",     _fmt(summary.get("max_drawdown_usd"), ".0f"), False, ""),
+        ("Max drawdown (%)",       f"{summary.get('max_drawdown_pct', float('nan')):.1%}" if not math.isnan(summary.get('max_drawdown_pct', float('nan'))) else "N/A", False, ""),
+        ("Drawdown duration (d)",  _fmt(summary.get("drawdown_duration_days"), ".0f"), False, ""),
+        ("Max consec. losses",     str(summary.get("max_consec_losses", "N/A")), False, ""),
+        ("Avg MAE (pts)",          _fmt(summary.get("avg_mae_points")),      False, ""),
+        ("Avg MFE (pts)",          _fmt(summary.get("avg_mfe_points")),      False, ""),
     ]
-    return [{"label": r[0], "value": r[1], "highlight": r[2]} for r in rows]
+    return [{"label": r[0], "value": r[1], "highlight": r[2], "flag": r[3]} for r in rows]
 
 
 def _build_equity_chart(equity: pd.Series) -> go.Figure:
@@ -1486,20 +1539,38 @@ def _build_walkforward_section(run_dir: Path, fig_to_html) -> dict:
         _apply_dark_theme(fig, height=380)
         equity_html = fig_to_html(fig)
 
-    # Aggregated totals.
+    # Aggregated totals and fold variance.
     aggregated = {}
+    fold_variance = {}
     if not per_fold.empty:
         total_trades = int(per_fold["trades"].sum()) if "trades" in per_fold.columns else 0
         aggregated = {
             "n_folds": len(per_fold),
             "total_trades": total_trades,
         }
+        # Fold variance on key metrics — high variance signals fragile edge.
+        for metric in ("calmar", "sharpe", "win_rate"):
+            if metric in per_fold.columns:
+                vals = per_fold[metric].dropna().values.astype(float)
+                finite = vals[np.isfinite(vals)]
+                if len(finite) >= 2:
+                    fold_variance[metric] = {
+                        "mean": float(np.mean(finite)),
+                        "std": float(np.std(finite, ddof=1)),
+                        "cv": float(np.std(finite, ddof=1) / abs(np.mean(finite)))
+                        if abs(np.mean(finite)) > 1e-9 else float("nan"),
+                        "min": float(np.min(finite)),
+                        "max": float(np.max(finite)),
+                        "positive_folds": int(np.sum(finite > 0)),
+                        "total_folds": len(finite),
+                    }
 
     return {
         "available": True,
         "table_html": table_html,
         "equity_html": equity_html,
         "aggregated": aggregated,
+        "fold_variance": fold_variance,
     }
 
 

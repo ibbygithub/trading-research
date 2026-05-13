@@ -26,7 +26,7 @@ _TRADING_DAYS_PER_YEAR = 252
 _WEEKS_PER_YEAR = 52
 
 
-def compute_summary(result: "BacktestResult") -> dict:
+def compute_summary(result: "BacktestResult") -> dict:  # noqa: UP037
     """Compute performance metrics from a BacktestResult.
 
     Returns a flat dict.  All monetary values are in USD.  Ratios are
@@ -159,7 +159,8 @@ def _drawdown_stats(equity: pd.Series) -> tuple[float, float, int]:
 
     max_dd_usd = float(drawdown.min())
     # Percentage relative to peak at that point.
-    peak_at_max = float(peak[drawdown.idxmin()]) if not drawdown.empty else float("nan")
+    idx_min = drawdown.idxmin()
+    peak_at_max = float(peak.loc[idx_min].iloc[0] if isinstance(peak.loc[idx_min], pd.Series) else peak.loc[idx_min]) if not drawdown.empty else float("nan")
     if peak_at_max != 0 and not math.isnan(peak_at_max):
         max_dd_pct = max_dd_usd / abs(peak_at_max)
     else:

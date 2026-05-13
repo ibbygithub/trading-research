@@ -98,3 +98,29 @@ class TestBootstrapSummary:
         text = format_with_ci(point, cis)
         assert "CI:" in text
         assert "Calmar" in text
+
+    def test_format_with_ci_includes_dsr(self):
+        from trading_research.eval.summary import compute_summary
+        result = _make_result([100.0] * 60 + [-50.0] * 40)
+        point = compute_summary(result)
+        cis = bootstrap_summary(result, n_samples=100, seed=1)
+        text = format_with_ci(point, cis, dsr=0.72, n_trials=5)
+        assert "Deflated Sharpe (DSR)" in text
+        assert "0.72" in text
+        assert "n_trials=5" in text
+
+    def test_format_with_ci_no_dsr_by_default(self):
+        from trading_research.eval.summary import compute_summary
+        result = _make_result([100.0] * 60 + [-50.0] * 40)
+        point = compute_summary(result)
+        cis = bootstrap_summary(result, n_samples=100, seed=1)
+        text = format_with_ci(point, cis)
+        assert "Deflated Sharpe" not in text
+
+    def test_ci_includes_zero_flag(self):
+        from trading_research.eval.summary import compute_summary
+        result = _make_result([50.0] * 30 + [-50.0] * 30)
+        point = compute_summary(result)
+        cis = bootstrap_summary(result, n_samples=500, seed=42)
+        text = format_with_ci(point, cis)
+        assert "CI includes zero" in text

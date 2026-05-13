@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "layer": "features",
+  "symbol": "6A",
+  "timeframe": "15m",
+  "adjustment": "backadjusted",
+  "row_count": 388736,
+  "date_range": {
+    "start": "2010-01-03T23:00:00+00:00",
+    "end": "2026-05-01T21:00:00+00:00"
+  },
+  "sources": [
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\clean\\6A_backadjusted_15m_2010-01-03_2026-05-01.parquet",
+      "built_at": "2026-05-03T20:28:42.429760+00:00",
+      "row_count": 388736
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\clean\\6A_1m_backadjusted_2010-01-01_2026-05-03.parquet",
+      "built_at": "2026-05-03T20:28:36.551143+00:00",
+      "row_count": 5496515
+    },
+    {
+      "path": "C:\\git\\work\\Trading-research\\data\\clean\\6A_backadjusted_1D_2010-01-03_2026-05-01.parquet",
+      "built_at": "2026-05-03T20:28:49.177343+00:00",
+      "row_count": 4215
+    }
+  ],
+  "feature_set_tag": "base-v1",
+  "featureset_hash": "c30e484f34e016c1",
+  "feature_set_config": "C:\\git\\work\\Trading-research\\configs\\featuresets\\base-v1.yaml",
+  "indicators": [
+    {
+      "name": "atr",
+      "period": 14
+    },
+    {
+      "name": "rsi",
+      "period": 14
+    },
+    {
+      "name": "bollinger",
+      "period": 20,
+      "num_std": 2.0
+    },
+    {
+      "name": "macd",
+      "fast": 12,
+      "slow": 26,
+      "signal": 9,
+      "derived": [
+        "hist_above_zero",
+        "hist_slope",
+        "bars_since_zero_cross",
+        "hist_decline_streak"
+      ]
+    },
+    {
+      "name": "sma",
+      "period": 200
+    },
+    {
+      "name": "donchian",
+      "period": 20
+    },
+    {
+      "name": "adx",
+      "period": 14
+    },
+    {
+      "name": "ofi",
+      "period": 14
+    },
+    {
+      "name": "vwap_session",
+      "derived": [
+        "std_1_0",
+        "std_1_5",
+        "std_2_0",
+        "std_3_0"
+      ]
+    },
+    {
+      "name": "vwap_weekly",
+      "derived": [
+        "std_1_0",
+        "std_1_5",
+        "std_2_0",
+        "std_3_0"
+      ]
+    },
+    {
+      "name": "vwap_monthly",
+      "derived": [
+        "std_1_0",
+        "std_1_5",
+        "std_2_0",
+        "std_3_0"
+      ]
+    }
+  ],
+  "htf_projections": [
+    {
+      "source_tf": "1D",
+      "shift": 1,
+      "columns": [
+        {
+          "name": "daily_ema_20",
+          "indicator": "ema",
+          "period": 20
+        },
+        {
+          "name": "daily_ema_50",
+          "indicator": "ema",
+          "period": 50
+        },
+        {
+          "name": "daily_ema_200",
+          "indicator": "ema",
+          "period": 200
+        },
+        {
+          "name": "daily_sma_200",
+          "indicator": "sma",
+          "period": 200
+        },
+        {
+          "name": "daily_atr_14",
+          "indicator": "atr",
+          "period": 14
+        },
+        {
+          "name": "daily_adx_14",
+          "indicator": "adx",
+          "period": 14
+        },
+        {
+          "name": "daily_macd_hist",
+          "indicator": "macd_hist",
+          "fast": 12,
+          "slow": 26,
+          "signal": 9
+        }
+      ]
+    }
+  ],
+  "built_at": "2026-05-03T20:51:07.437735+00:00",
+  "code_commit": "ab4f8d5"
+}

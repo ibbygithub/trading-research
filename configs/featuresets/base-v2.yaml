@@ -1,0 +1,54 @@
+# Feature set: base-v2
+#
+# Extends base-v1 with indicators useful for multi-timeframe strategies and
+# momentum/breakout approaches discovered in sessions 34–38.
+#
+# Immutable once a parquet has been built against this tag.  To experiment with
+# further additions, create base-v3.yaml.  base-v1 parquets remain loadable
+# and are NOT replaced by this tag.
+#
+# Rebuild command:
+#   uv run trading-research rebuild features --symbol 6A --set base-v2
+
+tag: base-v2
+description: >
+  Session-37 feature set. Extends base-v1 with fast EMA (9-period) for
+  momentum-crossover signals, CCI-14 as an oscillator complementary to RSI,
+  and EMA-20 at the bar's native timeframe (useful as a trend bias on any TF
+  without relying on the 1D HTF projection). All base-v1 columns are included
+  — this is a strict superset.
+
+# -----------------------------------------------------------------------
+# Inherit all base-v1 content
+# -----------------------------------------------------------------------
+extends: base-v1
+
+# -----------------------------------------------------------------------
+# Additions in base-v2
+# -----------------------------------------------------------------------
+indicators:
+  # Fast EMA — momentum-crossover trigger (EMA-9 × EMA-20 cross)
+  - name: ema
+    period: 9
+
+  # Native-TF EMA-20 (complements the daily_ema_20 projection in base-v1)
+  - name: ema
+    period: 20
+
+  # CCI (Commodity Channel Index) — oscillator; complements RSI
+  # +100 / -100 boundaries are the standard overbought/oversold levels
+  - name: cci
+    period: 14
+
+# -----------------------------------------------------------------------
+# No new VWAP variants in v2 — session VWAP is already in base-v1
+# -----------------------------------------------------------------------
+
+# -----------------------------------------------------------------------
+# Timeframes (same targets as base-v1)
+# -----------------------------------------------------------------------
+target_timeframes:
+  - 5m
+  - 15m
+  - 60m
+  - 240m

@@ -111,8 +111,20 @@ def bootstrap_summary(
 def format_with_ci(
     summary: dict,
     cis: dict[str, tuple[float, float]],
+    *,
+    dsr: float | None = None,
+    n_trials: int | None = None,
 ) -> str:
-    """Return a summary table with CIs printed alongside point estimates."""
+    """Return a summary table with CIs printed alongside point estimates.
+
+    Parameters
+    ----------
+    summary: Point-estimate dict from compute_summary.
+    cis: Bootstrap CI dict from bootstrap_summary.
+    dsr: Deflated Sharpe Ratio (optional). When provided, printed alongside
+         raw Sharpe to surface multiple-testing honesty.
+    n_trials: Number of trials used to compute DSR.
+    """
     lines = [
         "=" * 64,
         "  Backtest Performance Summary (with 90% bootstrap CI)",
@@ -134,6 +146,17 @@ def format_with_ci(
             return "  CI: [N/A, N/A]"
         return f"  CI: [{lo:.2f}, {hi:.2f}]"
 
+    def _ci_flag(ci: tuple[float, float] | None) -> str:
+        """Return a warning marker when CI lower bound includes zero."""
+        if ci is None:
+            return ""
+        lo, hi = ci
+        if math.isnan(lo) or math.isnan(hi):
+            return ""
+        if lo <= 0 <= hi:
+            return "  ⚠ CI includes zero"
+        return ""
+
     rows = [
         ("Total trades",         summary.get("total_trades"),          None),
         ("Win rate",              summary.get("win_rate"),              cis.get("win_rate_ci")),
@@ -154,14 +177,22 @@ def format_with_ci(
     ]
 
     for label, val, ci in rows:
+        flag = _ci_flag(ci)
         if isinstance(val, float) and not math.isnan(val) and abs(val) < 1 and label == "Win rate":
             val_str = f"  {val:.1%}"
-            lines.append(f"  {label:<28} {val_str:>10}{_fmt_ci(ci)}")
+            lines.append(f"  {label:<28} {val_str:>10}{_fmt_ci(ci)}{flag}")
         elif isinstance(val, float) and not math.isnan(val) and label == "Max drawdown (%)":
             val_str = f"  {val:.1%}"
-            lines.append(f"  {label:<28} {val_str:>10}{_fmt_ci(ci)}")
+            lines.append(f"  {label:<28} {val_str:>10}{_fmt_ci(ci)}{flag}")
         else:
-            lines.append(f"  {label:<28} {_fmt_val(val)}{_fmt_ci(ci)}")
+            lines.append(f"  {label:<28} {_fmt_val(val)}{_fmt_ci(ci)}{flag}")
+
+    # DSR line — surfaced alongside Sharpe for multiple-testing honesty.
+    if dsr is not None:
+        lines.append("-" * 64)
+        dsr_str = f"{dsr:.2f}" if math.isfinite(dsr) else "N/A"
+        trials_str = f" (n_trials={n_trials})" if n_trials is not None else ""
+        lines.append(f"  {'Deflated Sharpe (DSR)':<28} {dsr_str:>8}{trials_str}")
 
     lines.append("=" * 64)
     return "\n".join(lines)

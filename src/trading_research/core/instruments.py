@@ -55,6 +55,28 @@ class Instrument(BaseModel):
     calendar_name: str
     roll_method: Literal["panama", "ratio", "none"]
 
+    # OU tradeable half-life bounds (bars) per timeframe — session 29.
+    # Maps timeframe label → (lower, upper) inclusive range.
+    # Defaults match the original ZN-calibrated module constants from
+    # stationarity.py so existing ZN behaviour is preserved when an
+    # instrument does not declare explicit bounds.
+    tradeable_ou_bounds_bars: dict[str, tuple[float, float]] | None = None
+
+    def get_ou_bounds(self, timeframe: str) -> tuple[float, float] | None:
+        """Return (lower, upper) OU half-life bounds for *timeframe*.
+
+        Returns None if no bounds are configured for this instrument+timeframe.
+        Falls back to ZN-calibrated defaults when tradeable_ou_bounds_bars is
+        not set on the instrument.
+        """
+        _DEFAULT_BOUNDS: dict[str, tuple[float, float]] = {
+            "1m": (5.0, 60.0),
+            "5m": (3.0, 24.0),
+            "15m": (2.0, 8.0),
+        }
+        source = self.tradeable_ou_bounds_bars or _DEFAULT_BOUNDS
+        return source.get(timeframe)
+
     @field_validator(
         "session_open_et",
         "session_close_et",
