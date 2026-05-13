@@ -1,10 +1,10 @@
 # Chapter 13 — Strategy Configuration Reference
 
-> **Chapter status:** [EXISTS] with one [GAP]. §13.1–13.3 document the
-> complete implemented key set. §13.4 specifies the `validate-strategy`
-> CLI command that does not yet exist; it is a v1.0 gap captured here as
-> a spec so that implementation in session 49 lands against a ratified
-> design.
+> **Chapter status:** [EXISTS]. §13.1–13.3 document the complete
+> implemented key set. §13.4 covers the `validate-strategy` CLI that
+> enforces these constraints at lint time, before a backtest runs; the
+> full command reference is in
+> [Chapter 49.15](49-cli-command-reference.md).
 
 ---
 
@@ -390,12 +390,16 @@ v2.0 roadmap.
 
 ---
 
-## 13.4 Configuration linting — `validate-strategy` [GAP]
+## 13.4 Configuration linting — `validate-strategy`
 
-**Status:** [GAP] — the `validate-strategy` CLI command is specified here
-as the design contract for implementation in session 49. The expression
-evaluator and dispatch logic already exist; this command adds a dry-run
-wrapper that surfaces errors before a backtest runs.
+The `validate-strategy` CLI enforces the cross-key constraints from
+§13.2 and dry-runs every `entry:` and `exits:` expression against a
+synthetic dataset built on the real features-parquet schema. It is the
+fast iteration loop: name-resolution and expression errors surface in
+under a second, without loading real bars or building a backtest
+engine. The full command reference is in
+[Chapter 49.15](49-cli-command-reference.md); this section documents
+the contract the command implements.
 
 **Specification:**
 

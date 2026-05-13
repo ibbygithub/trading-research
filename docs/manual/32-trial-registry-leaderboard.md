@@ -1,12 +1,13 @@
 # Chapter 32 — Trial Registry & Leaderboard
 
 > **Chapter status:** [EXISTS] — the trial registry is implemented in
-> [`eval/trials.py`](../../src/trading_research/eval/trials.py). The
+> [`eval/trials.py`](../../src/trading_research/eval/trials.py); the
 > leaderboard is in
-> [`eval/leaderboard.py`](../../src/trading_research/eval/leaderboard.py).
-> CI columns (§32.4) were surfaced in session 46 and are marked
-> [EXISTS]. The `migrate-trials` CLI binding (§32.5) remains [PARTIAL];
-> the helper exists but is not yet wired to a subcommand.
+> [`eval/leaderboard.py`](../../src/trading_research/eval/leaderboard.py);
+> CI columns (§32.4) are surfaced in both text and HTML output; and
+> the `migrate-trials` CLI (§32.5) is bound to a subcommand. Full
+> command reference at
+> [Chapter 49.22](49-cli-command-reference.md).
 
 ---
 
@@ -198,18 +199,19 @@ normalises any registry to the current schema:
 
 The function is idempotent: running it twice produces the same output.
 
-**[PARTIAL]** — `migrate_trials` is implemented but is not yet bound to
-a CLI subcommand. Until the `migrate-trials` command ships (session 49),
-invoke it programmatically:
+The CLI binding is `uv run trading-research migrate-trials`. Dry-run
+is the default; pass `--apply` to write. A `.json.backup` sidecar is
+written before the new file unless `--no-backup` is given. The full
+command reference is in
+[Chapter 49.22](49-cli-command-reference.md).
 
-```python
-from pathlib import Path
-from trading_research.eval.trials import migrate_trials
-migrate_trials(Path("runs/.trials.json"))
+```
+uv run trading-research migrate-trials              # dry-run
+uv run trading-research migrate-trials --apply      # write + backup
 ```
 
-The session-49 spec includes binding this to
-`uv run trading-research migrate-trials`.
+The migration is idempotent — running it twice on a fully migrated
+registry is a no-op.
 
 ---
 

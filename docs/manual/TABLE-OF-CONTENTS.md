@@ -318,10 +318,10 @@ posture.
 11.6 Common patterns **[EXISTS]** — VWAP-band fades, MACD zero crosses,
 ATR-scaled stops, Bollinger reversions. Snippets of valid YAML for each.
 
-11.7 Common errors and how to read them **[PARTIAL]** — the evaluator
-raises `ValueError` with context; the `validate-strategy` CLI should
-surface these before any backtest runs. Currently you see them only when
-you run a backtest. **[GAP — to be built in `validate-strategy` CLI]**
+11.7 Common errors and how to read them **[EXISTS]** — the evaluator
+raises `ValueError` with context at signal-generation time; the
+`validate-strategy` CLI (Chapter 49.15) surfaces the same errors at
+lint time on a 100-bar synthetic dataset.
 
 ## Chapter 12 — Composable Regime Filters (~ 4 pages)
 
@@ -357,10 +357,11 @@ strategy YAML, alphabetised, with type, default, and one-sentence purpose.
 13.3 The default-filling order **[EXISTS]** — what happens when a key is
 omitted: code default, YAML default, error.
 
-13.4 Configuration linting **[GAP]** — `validate-strategy` CLI command
-specification: load the YAML, evaluate expressions on a 100-bar synthetic
-dataset, report any name-resolution failures, expected trade count, key
-problems.
+13.4 Configuration linting **[EXISTS]** — the `validate-strategy` CLI
+loads the YAML, enforces cross-key constraints, evaluates expressions
+on a 100-bar synthetic dataset built from the real features-parquet
+schema, and reports name-resolution failures and signal-rate warnings.
+Full command reference in Chapter 49.15.
 
 ---
 
@@ -701,9 +702,10 @@ sort by any metric, write HTML.
 columns in both text and HTML leaderboard output, showing `[lo, hi]`
 ranges when the trial was recorded with CI bounds.
 
-32.5 Migrating older trials **[PARTIAL]** — eighteen pre-session-35
-trials have `mode="unknown"`; a `migrate_trials` helper exists. **[GAP
-— bind to a CLI subcommand, document]**
+32.5 Migrating older trials **[EXISTS]** — the `migrate_trials` helper
+is bound to `uv run trading-research migrate-trials` (Chapter 49.22).
+Idempotent; dry-run by default; promotes pre-session-35 entries with
+`mode="unknown"` to `mode="validation"`.
 
 ## Chapter 33 — Multiple-Testing Correction (~ 2 pages)
 
@@ -919,9 +921,14 @@ is out of scope for v1.0 and is referenced here only for completeness.
 49.12 `portfolio` **[EXISTS]**
 49.13 `sweep` **[EXISTS]**
 49.14 `leaderboard` **[EXISTS]**
-49.15 `validate-strategy` **[GAP]** — full specification for
-implementation.
-49.16 `status` **[GAP]** — full specification for implementation.
+49.15 `validate-strategy` **[EXISTS]**
+49.16 `status` **[EXISTS]**
+49.17 `clean runs` **[EXISTS]**
+49.18 `clean canonical` **[EXISTS]**
+49.19 `clean features` **[EXISTS]**
+49.20 `clean trials` **[EXISTS]**
+49.21 `clean dryrun` **[EXISTS]**
+49.22 `migrate-trials` **[EXISTS]**
 
 Each subsection includes: synopsis, options, examples, exit codes,
 output format, common errors, see-also.
@@ -1257,8 +1264,8 @@ required.
 |---------|------|---------------|----------|----------|
 | 5 | Consolidate instrument loaders | Migrate `data.instruments` reads off `configs/instruments.yaml`; both code paths read from `configs/instruments_core.yaml`; delete `configs/instruments.yaml` and the legacy nested-schema loader | 0.5 | v1.0 |
 | 6.5 | Schema migration tooling | Migration helper + tests; backfill policy | 1 | v1.0 |
-| 11.7 / 13.4 / 49.15 | `validate-strategy` CLI | Lint a YAML, dry-run on 100 bars, report | 1 | v1.0 |
-| 49.16 | `status` CLI | Show data freshness, last 5 backtests, registered strategies | 0.5 | v1.0 |
+| ~~11.7 / 13.4 / 49.15~~ | ~~`validate-strategy` CLI~~ | **Done — session 49** | 0 | v1.0 |
+| ~~49.16~~ | ~~`status` CLI~~ | **Done — session 49** | 0 | v1.0 |
 | 35.2 | Daily loss limit in BacktestEngine | Hook into engine, fail-fast trade rejection | 0.5 | v1.0 |
 | 52.1–52.4 | Logging coverage + run_id + file logger | Bring all hot-path modules under structlog; consistent fields; rotating file logger; tail-log subcommand | 1 | v1.0 |
 | ~~56.5.3~~ | ~~Storage cleanup CLI subcommands~~ | **Done — session 43** | 0 | v1.0 |
@@ -1284,7 +1291,7 @@ required.
 | ~~22.7~~ | ~~Walk-forward fold table in report~~ | **Done — session 46** | 0 |
 | ~~23.5~~ | ~~DSR in `format_with_ci` headline~~ | **Done — session 46** | 0 |
 | ~~32.4~~ | ~~CI columns in leaderboard~~ | **Done — session 46** | 0 |
-| 32.5 | `migrate-trials` CLI binding | Wire existing helper to a subcommand | 0.25 |
+| ~~32.5~~ | ~~`migrate-trials` CLI binding~~ | **Done — session 49** | 0 |
 
 ### Summary — total estimated remaining work
 
@@ -1300,8 +1307,9 @@ The v1.0 backlog, in priority order:
 1. ~~**Surface the existing statistical rigor** (chapters 17.5, 22.7, 23.5,
    32.4, 8.6) — one session.~~ **Done — session 46** (8.6 deferred to
    `status` CLI session)
-2. **Ship the deferred CLIs** `validate-strategy`, `status`,
-   `migrate-trials` (chapters 49.15, 49.16, 32.5) — one session.
+2. ~~**Ship the deferred CLIs** `validate-strategy`, `status`,
+   `migrate-trials` (chapters 49.15, 49.16, 32.5) — one session.~~
+   **Done — session 49**
 3. ~~**Storage management & cleanup** (chapter 56.5: clean CLI subcommands,
    retention policy, growth-rate forecast) — one session.~~ **Done — session 43**
 4. **Logging and observability** (chapter 52: structlog hot-path coverage,

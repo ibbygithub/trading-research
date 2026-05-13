@@ -294,9 +294,75 @@ def migrate_trials(path: Path, backup: bool = True) -> None:
         # Session-35 migration: tag all existing trials as validation by default.
         trial.setdefault("mode", "validation")
         trial.setdefault("parent_sweep_id", None)
+        # Session-49 migration: pre-session-35 trials carry mode="unknown".
+        # Promote to "validation" — pre-session-35 trials were the historical
+        # record-of-truth before the exploration/validation distinction existed.
+        if trial.get("mode") == "unknown":
+            trial["mode"] = "validation"
 
     _write_registry(path, raw)
     logger.info("migrate_trials: complete", n_trials=len(raw), path=str(path))
+
+
+def diff_trials_migration(path: Path) -> dict:
+    """Return a summary of what migrate_trials would change without writing.
+
+    Used by the ``migrate-trials`` CLI subcommand for dry-run output.
+
+    Returns a dict with:
+      - ``total`` — total trial count.
+      - ``would_set_code_version`` — entries lacking code_version.
+      - ``would_set_cohort_label`` — entries lacking cohort_label.
+      - ``would_set_featureset_hash`` — entries lacking featureset_hash.
+      - ``would_set_mode_validation`` — entries lacking mode (default to validation).
+      - ``would_set_parent_sweep_id`` — entries lacking parent_sweep_id.
+      - ``would_promote_unknown_to_validation`` — entries currently mode="unknown".
+      - ``format_change`` — True if the registry is still in flat-list format.
+      - ``no_op`` — True iff every counter above is 0 and no format change.
+    """
+    if not path.exists():
+        return {"total": 0, "no_op": True, "format_change": False}
+
+    text = path.read_text(encoding="utf-8")
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return {"total": 0, "no_op": False, "format_change": True, "error": "invalid JSON"}
+
+    format_change = isinstance(parsed, list)
+    raw = _load_raw(path)
+    counters = {
+        "would_set_code_version": 0,
+        "would_set_cohort_label": 0,
+        "would_set_featureset_hash": 0,
+        "would_set_mode_validation": 0,
+        "would_set_parent_sweep_id": 0,
+        "would_promote_unknown_to_validation": 0,
+    }
+    for trial in raw:
+        if "code_version" not in trial:
+            counters["would_set_code_version"] += 1
+        if "cohort_label" not in trial:
+            counters["would_set_cohort_label"] += 1
+        if "featureset_hash" not in trial:
+            counters["would_set_featureset_hash"] += 1
+        if "mode" not in trial:
+            counters["would_set_mode_validation"] += 1
+        if "parent_sweep_id" not in trial:
+            counters["would_set_parent_sweep_id"] += 1
+        if trial.get("mode") == "unknown":
+            counters["would_promote_unknown_to_validation"] += 1
+
+    no_op = (
+        not format_change
+        and all(v == 0 for v in counters.values())
+    )
+    return {
+        "total": len(raw),
+        "format_change": format_change,
+        "no_op": no_op,
+        **counters,
+    }
 
 
 def compute_dsr(

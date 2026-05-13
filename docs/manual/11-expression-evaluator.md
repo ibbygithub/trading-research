@@ -1,11 +1,9 @@
 # Chapter 11 — The Expression Evaluator
 
-> **Chapter status:** [EXISTS] with one [PARTIAL] item. §11.1–11.6 describe
-> a fully implemented evaluator in
-> `src/trading_research/strategies/template.py`. §11.7 documents the current
-> error-reporting behaviour, which is functional but surfaces errors only
-> at backtest time rather than at lint time; full lint-time surfacing
-> requires the `validate-strategy` CLI (Chapter 49.15, [GAP]).
+> **Chapter status:** [EXISTS]. §11.1–11.6 describe a fully implemented
+> evaluator in `src/trading_research/strategies/template.py`. §11.7
+> documents the error-reporting behaviour at signal-generation time
+> and at lint time via the `validate-strategy` CLI ([Chapter 49.15](49-cli-command-reference.md)).
 
 ---
 
@@ -153,9 +151,9 @@ When the evaluator encounters a bare name, it resolves it in this order:
 3. **Error.** If the name is neither a column nor a knob, the evaluator
    raises `ValueError` with a message listing the first 8 known column
    names and all known knob names. This error surfaces at signal
-   generation time (when `generate_signals_df` is called) — currently
-   not at YAML load time. The `validate-strategy` CLI (Chapter 49.15)
-   will surface these errors earlier once implemented.
+   generation time (when `generate_signals_df` is called); the
+   `validate-strategy` CLI ([Chapter 49.15](49-cli-command-reference.md))
+   surfaces the same error at lint time, before any backtest runs.
 
 **Precedence implication.** Columns always shadow knobs. A knob named
 `close` would never be used — the evaluator would always return the
@@ -447,11 +445,12 @@ Requires `higher_timeframes: [60m]` and the 60m feature parquet to exist.
 ## 11.7 Common errors and how to read them
 
 The evaluator raises `ValueError` with a diagnostic message for every
-failure mode. Current limitation: these errors surface at signal
-generation time (when `generate_signals_df` is called), which means
-they appear when the backtest runs — not when the YAML is loaded. The
-`validate-strategy` CLI (Chapter 49.15 [GAP]) will surface them earlier
-by dry-running signal generation on a small synthetic dataset.
+failure mode. Two surfaces report these errors: the `backtest` command
+when signal generation runs, and the `validate-strategy` CLI
+([Chapter 49.15](49-cli-command-reference.md)) at lint time on a
+100-bar synthetic dataset. The lint surface is the fast iteration loop
+— it catches the same errors without loading real bars or building an
+engine.
 
 | Error message pattern | Cause | Fix |
 |-----------------------|-------|-----|
@@ -465,11 +464,15 @@ by dry-running signal generation on a small synthetic dataset.
 | `Knob 'x' value 'abc' cannot be used as a number` | Non-numeric knob value | Set knob to a numeric value |
 | `Chained comparisons (e.g. a < b < c) are not supported` | Chained comparison | Split into two `all:` conditions |
 
-Until `validate-strategy` is implemented, the fastest debugging workflow
-is to run the backtest with `--from` and `--to` set to a short date range
-(one week). The error appears immediately, the stack trace points to the
-failing expression string, and the fix is usually obvious from the
-diagnostic message.
+The fastest debugging workflow is `uv run trading-research
+validate-strategy <config_path>` — the command resolves the features
+parquet, dry-runs signal generation on synthetic bars, and reports any
+name-resolution failures with a "did you mean" hint sourced from the
+real schema. If a strategy passes the lint but still errors during a
+real backtest, the cause is almost always an interaction with the
+exact bar data (e.g., a regime filter fitting on a window with no
+qualifying bars); re-run with a short `--from`/`--to` window and read
+the traceback.
 
 ---
 
@@ -491,8 +494,8 @@ diagnostic message.
   expressions are used.
 - **Chapter 13** — configuration reference: the complete key list,
   including valid expression positions.
-- **Chapter 49.15** — `validate-strategy` CLI [GAP]: the planned
-  lint-time error surface for expression errors.
+- **Chapter 49.15** — `validate-strategy` CLI: the lint-time error
+  surface for expression errors.
 - **Chapter 55.2** — strategy-layer common errors: field-level error
   documentation for operators.
 
