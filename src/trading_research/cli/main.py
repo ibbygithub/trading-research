@@ -34,6 +34,14 @@ app.add_typer(rebuild_app, name="rebuild")
 from trading_research.cli.clean import clean_app
 app.add_typer(clean_app, name="clean")
 
+from trading_research.cli.validate_strategy import validate_strategy_command
+from trading_research.cli.status import status_command
+from trading_research.cli.migrate_trials import migrate_trials_command
+
+app.command(name="validate-strategy")(validate_strategy_command)
+app.command(name="status")(status_command)
+app.command(name="migrate-trials")(migrate_trials_command)
+
 _DATA_ROOT = Path(__file__).parents[3] / "data"
 
 
