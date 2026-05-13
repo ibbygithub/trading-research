@@ -66,6 +66,11 @@ class VolatilityRegimeFilter:
         return f"volatility-regime(p{int(self._percentile)})"
 
     @property
+    def atr_column(self) -> str:
+        """Name of the ATR column used by this filter."""
+        return self._atr_column
+
+    @property
     def is_fitted(self) -> bool:
         """True after ``fit()`` has been called at least once."""
         return self._threshold is not None
@@ -99,6 +104,27 @@ class VolatilityRegimeFilter:
                 f"fit() received an empty ATR series for column {self._atr_column!r}."
             )
         self._threshold = float(np.percentile(values, self._percentile))
+
+    def vectorized_mask(self, features: pd.DataFrame) -> np.ndarray:
+        """Return a boolean ndarray over all bars in *features*.
+
+        True where ATR is within the fitted threshold (tradeable).
+        Bars with non-finite or non-positive ATR are marked False.
+
+        Auto-fits on *features* if ``fit()`` has not been called (non-rolling
+        backtest mode).  Fitting on the evaluation set is a deliberate
+        trade-off for single-window backtests; use ``fit()`` explicitly for
+        walk-forward.
+
+        Raises
+        ------
+        KeyError
+            If ``atr_column`` is not present in *features*.
+        """
+        if self._threshold is None:
+            self.fit(features)
+        col = features[self._atr_column].to_numpy(dtype=float)
+        return np.isfinite(col) & (col > 0) & (col <= self._threshold)
 
     def is_tradeable(self, features: pd.DataFrame, idx: int) -> bool:
         """Return True if the bar at *idx* is in a low-vol (tradeable) regime.

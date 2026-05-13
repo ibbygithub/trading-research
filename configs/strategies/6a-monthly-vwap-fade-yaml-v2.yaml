@@ -1,0 +1,59 @@
+# 6A 60m Monthly VWAP Band Fade — v2
+#
+# Session-39 redesign of H4. Session-38 established that:
+#   - band_mult=3.0, stop_atr_mult=2.0, adx_max=20 is the best configuration
+#   - 54.1% WR confirms signal direction is correct
+#   - The target (full VWAP) is too far: ATR stop hits before price travels 3σ
+#
+# This version changes:
+#   1. Target: replaced vwap_monthly with a closer band level.
+#      target_mult=2.0 sets the exit at the 2σ lower band (a 1σ move from entry).
+#      Sweep target_mult to find the R:R sweet spot.
+#   2. Entry gate: 08:00–17:00 UTC only (London + NY — institutional flow sessions).
+#      Entry remains possible at any time in v1; the time gate filters noise.
+#
+# band_mult and stop_atr_mult are FIXED at their session-38 optimal values.
+# Only target_mult is swept.
+
+strategy_id: 6a-monthly-vwap-fade-yaml-v2
+symbol: 6A
+timeframe: 60m
+description: >
+  6A 60m monthly VWAP band fade v2. Entries at 3σ from monthly VWAP,
+  08:00–17:00 UTC only. Target is the target_mult σ band (closer than VWAP)
+  to improve R:R. ADX gate filters trending months.
+
+knobs:
+  band_mult: 3.0            # fixed — best from session-38 sweep
+  stop_atr_mult: 2.0        # fixed — best from session-38 sweep
+  adx_max: 20.0             # fixed — best from session-38 sweep
+  target_mult: 2.0          # sweep this: σ level of exit band (< band_mult)
+
+entry:
+  long:
+    all:
+      - "close < vwap_monthly - band_mult * vwap_monthly_std_1_0"
+      - "adx_14 < adx_max"
+  short:
+    all:
+      - "close > vwap_monthly + band_mult * vwap_monthly_std_1_0"
+      - "adx_14 < adx_max"
+  time_window:
+    start_utc: "08:00"
+    end_utc: "17:00"
+
+exits:
+  stop:
+    long:  "close - stop_atr_mult * atr_14"
+    short: "close + stop_atr_mult * atr_14"
+  target:
+    long:  "vwap_monthly - target_mult * vwap_monthly_std_1_0"
+    short: "vwap_monthly + target_mult * vwap_monthly_std_1_0"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: false           # monthly MR may need overnight holds
+  max_holding_bars: 96      # ~4 trading days at 60m — carries over from v1
+  use_ofi_resolution: false
+  quantity: 1

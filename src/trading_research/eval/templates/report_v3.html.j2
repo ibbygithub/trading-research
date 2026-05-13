@@ -269,6 +269,7 @@
     <div class="metric-card{% if m.highlight %} highlight{% endif %}">
       <div class="metric-label">{{ m.label }}</div>
       <div class="metric-value">{{ m.value }}</div>
+      {% if m.flag %}<div class="metric-ci" style="color: var(--red);">{{ m.flag }}</div>{% endif %}
     </div>
     {% endfor %}
   </div>
@@ -598,6 +599,28 @@
     Purged walk-forward: {{ wf.aggregated.n_folds }} folds.
     Total OOS trades: {{ wf.aggregated.total_trades }}.
   </p>
+  {% if wf.fold_variance %}
+  <h3>Fold Variance</h3>
+  <p style="color: var(--muted); font-size: 11px;">
+    High fold variance signals a fragile edge — the strategy works in some periods but not others.
+  </p>
+  <table class="risk-table">
+    <thead><tr><td><strong>Metric</strong></td><td><strong>Mean</strong></td><td><strong>Std</strong></td><td><strong>CV</strong></td><td><strong>Min</strong></td><td><strong>Max</strong></td><td><strong>+ve Folds</strong></td></tr></thead>
+    <tbody>
+    {% for metric, fv in wf.fold_variance.items() %}
+    <tr>
+      <td>{{ metric }}</td>
+      <td>{{ "%.3f" | format(fv.mean) }}</td>
+      <td>{{ "%.3f" | format(fv.std) }}</td>
+      <td>{% if fv.cv == fv.cv %}{{ "%.2f" | format(fv.cv) }}{% else %}N/A{% endif %}</td>
+      <td>{{ "%.3f" | format(fv.min) }}</td>
+      <td>{{ "%.3f" | format(fv.max) }}</td>
+      <td>{{ fv.positive_folds }}/{{ fv.total_folds }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
   <h3>Per-Fold OOS Metrics</h3>
   {{ wf.table_html | safe }}
   {% if wf.equity_html %}

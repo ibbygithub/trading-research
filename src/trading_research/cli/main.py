@@ -31,6 +31,9 @@ app = typer.Typer(
 rebuild_app = typer.Typer(help="Rebuild CLEAN or FEATURES data from sources.", no_args_is_help=True)
 app.add_typer(rebuild_app, name="rebuild")
 
+from trading_research.cli.clean import clean_app
+app.add_typer(clean_app, name="clean")
+
 _DATA_ROOT = Path(__file__).parents[3] / "data"
 
 
@@ -408,11 +411,25 @@ def backtest(
 ) -> None:
     """Run a backtest from a strategy YAML config.
 
+    Supports three config formats (auto-detected):
+
+    1. YAML template (session 36+): config has an ``entry:`` block with
+       declarative conditions — no Python module required.
+       Example: configs/strategies/6a-vwap-reversion-adx-yaml-v1.yaml
+
+    2. Registered template: config has a ``template:`` key pointing to a
+       name in the StrategyTemplate registry.
+       Example: configs/strategies/6e-vwap-reversion-v1.yaml
+
+    3. Python module (legacy): config has a ``signal_module:`` key pointing
+       to an importable module with a ``generate_signals`` function.
+       Example: configs/strategies/6a-vwap-reversion-adx-v1.yaml
+
     Writes trades.parquet, equity_curve.parquet, and summary.json to
     runs/<strategy_id>/<YYYY-MM-DD-HH-MM>/ and prints a summary table.
 
     Example:
-        uv run trading-research backtest --strategy configs/strategies/example.yaml
+        uv run trading-research backtest --strategy configs/strategies/6a-vwap-reversion-adx-yaml-v1.yaml
     """
     import importlib
     import json
@@ -438,7 +455,26 @@ def backtest(
     strategy_id = cfg_raw["strategy_id"]
     symbol = cfg_raw["symbol"]
     timeframe = cfg_raw.get("timeframe", "5m")
-    signal_module_path = cfg_raw["signal_module"]
+
+    # Detect dispatch path — mutually exclusive.
+    has_entry = "entry" in cfg_raw
+    template_name = cfg_raw.get("template")
+    signal_module_path = cfg_raw.get("signal_module")
+    dispatch_count = sum([has_entry, bool(template_name), bool(signal_module_path)])
+    if dispatch_count == 0:
+        typer.echo(
+            "ERROR: config must have one of 'entry' (YAML template), "
+            "'template' (registered template), or 'signal_module' (Python module).",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    if dispatch_count > 1:
+        typer.echo(
+            "ERROR: config may have only one of 'entry', 'template', or 'signal_module'.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
     bt_cfg_raw = cfg_raw.get("backtest", {})
 
     fill_model_str = bt_cfg_raw.get("fill_model", "next_bar_open")
@@ -501,18 +537,100 @@ def backtest(
 
     typer.echo(f"Bars: {len(bars):,}  ({bars.index[0].date()} to {bars.index[-1].date()})")
 
-    # --- Generate signals ---
-    try:
-        mod = importlib.import_module(signal_module_path)
-    except ImportError as e:
-        typer.echo(f"ERROR: cannot import signal_module '{signal_module_path}': {e}", err=True)
-        raise typer.Exit(code=2)
+    # --- Generate signals (dispatch by config type) ---
+    strategy_obj = None  # optional Strategy Protocol object for the engine
 
-    signal_params = cfg_raw.get("signal_params", {})
-    if signal_params:
-        signals_df = mod.generate_signals(bars, **signal_params)
+    if has_entry:
+        # YAML template: declarative entry/exit conditions, no Python required.
+        from trading_research.backtest.multiframe import join_htf, safe_prefix
+        from trading_research.strategies.template import YAMLStrategy
+
+        # Join higher-timeframe features if requested (session 37).
+        higher_timeframes = cfg_raw.get("higher_timeframes", [])
+        for htf in higher_timeframes:
+            from trading_research.replay.data import DataNotFoundError, _find_parquet
+            import pandas as _pd
+            try:
+                htf_path = _find_parquet(
+                    feat_dir,
+                    f"{symbol}_backadjusted_{htf}_features_{feature_set}_*.parquet",
+                )
+            except DataNotFoundError as e:
+                typer.echo(f"ERROR: HTF features ({htf}) not found — {e}", err=True)
+                raise typer.Exit(code=2)
+            htf_bars = _pd.read_parquet(htf_path, engine="pyarrow")
+            htf_bars = htf_bars.set_index("timestamp_utc")
+            htf_bars.index = _pd.DatetimeIndex(htf_bars.index, tz="UTC")
+            htf_bars = htf_bars.sort_index()
+            if from_date:
+                htf_bars = htf_bars[htf_bars.index >= _pd.Timestamp(from_date, tz="UTC")]
+            if to_date:
+                htf_bars = htf_bars[htf_bars.index <= _pd.Timestamp(to_date, tz="UTC")]
+            bars = join_htf(bars, htf_bars, prefix=safe_prefix(htf))
+            typer.echo(f"Joined HTF features: {htf} ({len(htf_bars):,} bars)")
+
+        try:
+            yaml_strat = YAMLStrategy.from_config(cfg_raw)
+        except (ValueError, KeyError) as e:
+            typer.echo(f"ERROR: invalid YAML template config — {e}", err=True)
+            raise typer.Exit(code=2)
+        try:
+            signals_df = yaml_strat.generate_signals_df(bars)
+        except (ValueError, KeyError) as e:
+            typer.echo(f"ERROR: YAML strategy signal generation failed — {e}", err=True)
+            raise typer.Exit(code=2)
+        strategy_obj = yaml_strat
+
+    elif template_name:
+        # Registered StrategyTemplate — import its module to trigger @register_template.
+        import importlib as _il
+        from trading_research.core.templates import _GLOBAL_REGISTRY
+        from trading_research.backtest.walkforward import _signals_to_dataframe
+
+        template_module = cfg_raw.get("template_module")
+        if template_module:
+            try:
+                _il.import_module(template_module)
+            except ImportError as e:
+                typer.echo(f"ERROR: cannot import template_module '{template_module}': {e}", err=True)
+                raise typer.Exit(code=2)
+        else:
+            # Auto-import known template modules so decorators fire.
+            for _m in [
+                "trading_research.strategies.vwap_reversion_v1",
+            ]:
+                try:
+                    _il.import_module(_m)
+                except ImportError:
+                    pass
+
+        try:
+            strategy_obj = _GLOBAL_REGISTRY.instantiate(
+                template_name, cfg_raw.get("knobs", {})
+            )
+        except (KeyError, Exception) as e:
+            typer.echo(f"ERROR: template instantiation failed — {e}", err=True)
+            raise typer.Exit(code=2)
+
+        from trading_research.core.instruments import InstrumentRegistry as _IR
+        _core_inst = _IR().get(symbol)
+
+        raw_signals = strategy_obj.generate_signals(bars, bars, _core_inst)
+        signals_df = _signals_to_dataframe(raw_signals, bars.index)
+
     else:
-        signals_df = mod.generate_signals(bars)
+        # Python signal_module (legacy path).
+        try:
+            mod = importlib.import_module(signal_module_path)
+        except ImportError as e:
+            typer.echo(f"ERROR: cannot import signal_module '{signal_module_path}': {e}", err=True)
+            raise typer.Exit(code=2)
+
+        signal_params = cfg_raw.get("signal_params", {})
+        if signal_params:
+            signals_df = mod.generate_signals(bars, **signal_params)
+        else:
+            signals_df = mod.generate_signals(bars)
 
     sf = SignalFrame(signals_df)
     try:
@@ -522,7 +640,7 @@ def backtest(
         raise typer.Exit(code=2)
 
     # --- Run engine ---
-    engine = BacktestEngine(bt_config, inst)
+    engine = BacktestEngine(bt_config, inst, strategy=strategy_obj)
     typer.echo("Running backtest…")
     result = engine.run(bars, signals_df)
 
@@ -561,19 +679,52 @@ def backtest(
     )
     typer.echo(f"Summary written: {summary_path}")
 
+    # --- Compute DSR for the summary output ---
+    from trading_research.eval.trials import record_trial, count_trials
+    from trading_research.eval.stats import deflated_sharpe_ratio
+    import numpy as np
+    from scipy import stats as scipy_stats
+
+    n_trials = count_trials(runs_root=out_root, strategy_id=strategy_id)
+    net_pnl = result.trades["net_pnl_usd"].values.astype(float)
+    finite_pnl = net_pnl[np.isfinite(net_pnl)]
+    n_obs = len(finite_pnl)
+    skew = kurtosis = float("nan")
+    if n_obs >= 4:
+        skew = float(scipy_stats.skew(finite_pnl))
+        kurtosis = float(scipy_stats.kurtosis(finite_pnl, fisher=False))
+    dsr = deflated_sharpe_ratio(
+        sharpe=summary.get("sharpe", float("nan")),
+        n_obs=n_obs,
+        n_trials=max(n_trials, 1),
+        skewness=skew if math.isfinite(skew) else 0.0,
+        kurtosis_pearson=kurtosis if math.isfinite(kurtosis) else 3.0,
+    )
+
     # --- Print summary table with CIs ---
     typer.echo("")
-    typer.echo(format_with_ci(summary, cis))
+    typer.echo(format_with_ci(summary, cis, dsr=dsr, n_trials=n_trials))
 
-    # --- Record trial ---
-    from trading_research.eval.trials import record_trial
+    # --- Record trial (with CI bounds for leaderboard) ---
     trial_group_val: str | None = None  # default: use strategy_id
+    sharpe_ci = cis.get("sharpe_ci", (None, None))
+    calmar_ci = cis.get("calmar_ci", (None, None))
     record_trial(
         runs_root=out_root,
         strategy_id=strategy_id,
         config_path=strategy,
         sharpe=summary.get("sharpe", float("nan")),
         trial_group=trial_group_val,
+        calmar=summary.get("calmar"),
+        max_drawdown_usd=summary.get("max_drawdown_usd"),
+        win_rate=summary.get("win_rate"),
+        total_trades=summary.get("total_trades"),
+        instrument=symbol,
+        timeframe=timeframe,
+        sharpe_ci_lo=sharpe_ci[0],
+        sharpe_ci_hi=sharpe_ci[1],
+        calmar_ci_lo=calmar_ci[0],
+        calmar_ci_hi=calmar_ci[1],
     )
 
 
@@ -876,6 +1027,137 @@ def portfolio(
     except Exception as e:
         typer.secho(f"Failed to generate portfolio report: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
+
+# ---------------------------------------------------------------------------
+# sweep
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def sweep(
+    strategy: Annotated[Path, typer.Option(help="Path to base strategy YAML config.")],
+    param: Annotated[
+        Optional[list[str]],
+        typer.Option("--param", help="'key=v1,v2,v3' — can be repeated for multiple params."),
+    ] = None,
+    out: Annotated[Optional[Path], typer.Option(help="Output root (default: runs/).")] = None,
+) -> None:
+    """Run a parameter grid sweep over a strategy config.
+
+    Generates the cartesian product of all --param values and runs each
+    combination as an exploration backtest trial.  All results are tagged
+    mode=exploration and share a parent_sweep_id so you can track them as
+    a cohort in the leaderboard.
+
+    Examples:
+        uv run trading-research sweep \\
+            --strategy configs/strategies/6a-vwap-reversion-adx-v1.yaml \\
+            --param entry_atr_mult=1.0,1.5,2.0 \\
+            --param adx_max=18,22,25
+
+        # Produces 3 × 3 = 9 exploration trials.
+    """
+    from trading_research.cli.sweep import expand_params, run_sweep
+
+    param_specs: list[str] = param or []
+
+    # Validate we have at least one param (a sweep with no params is just one run).
+    if not param_specs:
+        typer.echo(
+            "WARNING: no --param specified; running a single variant (identity sweep).",
+            err=True,
+        )
+
+    combos = expand_params(param_specs)
+    n = len(combos)
+    typer.echo(f"Sweep: {n} variant(s)  config={strategy.name}  params={param_specs}")
+
+    runs_root = out or (Path(__file__).parents[3] / "runs")
+
+    results = run_sweep(
+        config_path=strategy,
+        param_specs=param_specs,
+        runs_root=runs_root,
+        data_root=_DATA_ROOT,
+    )
+
+    typer.echo(f"\nSweep complete: {len(results)}/{n} variants succeeded.")
+    if results:
+        sweep_id = results[0].get("sweep_id", "?")
+        typer.echo(f"Sweep ID: {sweep_id}")
+        typer.echo("")
+        typer.echo(f"{'Variant':>4}  {'Params':40}  {'Sharpe':>8}  {'Calmar':>8}  {'Trades':>7}")
+        for i, r in enumerate(results, 1):
+            s = r.get("summary", {})
+            sharpe_val = s.get("sharpe", float("nan"))
+            calmar_val = s.get("calmar", float("nan"))
+            trades_val = s.get("total_trades", 0)
+            sh_str = f"{sharpe_val:.3f}" if isinstance(sharpe_val, float) and not (sharpe_val != sharpe_val) else "N/A"
+            ca_str = f"{calmar_val:.3f}" if isinstance(calmar_val, float) and not (calmar_val != calmar_val) else "N/A"
+            params_str = str(r.get("signal_params_override", {}))[:40]
+            typer.echo(f"{i:>4}  {params_str:40}  {sh_str:>8}  {ca_str:>8}  {trades_val:>7}")
+
+        typer.echo(f"\nView results: uv run trading-research leaderboard --filter parent_sweep_id={sweep_id}")
+
+
+# ---------------------------------------------------------------------------
+# leaderboard
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def leaderboard(
+    filter: Annotated[
+        Optional[list[str]],
+        typer.Option("--filter", help="'key=value' filter, repeatable (AND logic)."),
+    ] = None,
+    sort: Annotated[str, typer.Option(help="Metric to sort by (default: calmar).")] = "calmar",
+    ascending: Annotated[bool, typer.Option("--ascending", help="Sort ascending (default: descending).")] = False,
+    html_out: Annotated[
+        Optional[Path],
+        typer.Option("--html-out", help="Write HTML leaderboard to this path."),
+    ] = None,
+    out: Annotated[Optional[Path], typer.Option(help="Override runs/ root.")] = None,
+) -> None:
+    """Show a ranked leaderboard of all recorded trials.
+
+    Filter and sort by any trial field.  Optionally write an HTML report.
+
+    Examples:
+        uv run trading-research leaderboard --filter mode=exploration --sort calmar
+        uv run trading-research leaderboard --filter instrument=6A --sort sharpe
+        uv run trading-research leaderboard --filter parent_sweep_id=abc12345 \\
+            --sort calmar --html-out outputs/leaderboard.html
+    """
+    from trading_research.eval.leaderboard import build_leaderboard, format_table, generate_html
+
+    runs_root = out or (Path(__file__).parents[3] / "runs")
+    registry_path = runs_root / ".trials.json"
+
+    filter_specs: list[str] = filter or []
+
+    trials = build_leaderboard(
+        registry_path=registry_path,
+        filters=filter_specs,
+        sort_key=sort,
+        ascending=ascending,
+    )
+
+    if not trials:
+        typer.echo("No trials found matching the given filters.")
+        if filter_specs:
+            typer.echo(f"  Filters applied: {filter_specs}")
+        raise typer.Exit(code=0)
+
+    typer.echo(f"\nLeaderboard — {len(trials)} trial(s)  sort={sort}  filters={filter_specs or 'none'}\n")
+    typer.echo(format_table(trials, sort_key=sort))
+
+    if html_out:
+        html = generate_html(trials, sort_key=sort, filters=filter_specs)
+        html_out.parent.mkdir(parents=True, exist_ok=True)
+        html_out.write_text(html, encoding="utf-8")
+        typer.echo(f"\nHTML written: {html_out}")
+
 
 if __name__ == "__main__":
     main()

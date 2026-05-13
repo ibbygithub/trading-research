@@ -1,0 +1,24 @@
+# Retention policy defaults for `trading-research clean` subcommands.
+#
+# A missing key uses the documented default from Chapter 56.5 §56.5.4.
+# A missing file uses all documented defaults — `clean` does not require
+# this YAML to exist.
+
+runs:
+  keep_last_per_strategy: 10
+  archive_older_than: 90d
+  archive_dir: outputs/archive/runs/
+
+clean:
+  keep_latest_per_tuple: true
+  archive_dir: outputs/archive/clean/
+
+features:
+  keep_latest_per_tuple: true
+  retire_tags: []                    # explicit list of tags to reap entirely
+
+trials:
+  keep_modes: [validation]              # never compacted or deleted at any age
+  compact_after: 180d                   # exploration → compacted archive
+  delete_after: 730d                    # exploration: archive → fully deleted
+  archive_path: outputs/archive/trials/

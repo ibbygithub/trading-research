@@ -1,0 +1,51 @@
+# 6C Donchian Breakout with Daily EMA Trend Confirmation — YAML template port
+#
+# YAML-template port of trading_research.strategies.fx_donchian_breakout.
+# Produces identical signals to that Python module given the same features data.
+#
+# Entry: 20-bar high/low breakout when daily EMA(50)/EMA(200) trend aligns.
+#        shift(donchian_upper, 1) uses the PRIOR bar's 20-bar high to avoid
+#        look-ahead (current bar cannot be its own breakout benchmark).
+# Stop:  ATR-based distance from signal-bar close.
+# Target: ATR-based distance from signal-bar close (2:1 reward:risk at defaults).
+#
+# Holds up to 48 bars (~2 trading days at 60m). EOD flat disabled — multi-day
+# oil-driven trends are the thesis.
+
+strategy_id: 6c-donchian-breakout-yaml-v1
+symbol: 6C
+timeframe: 60m
+description: >
+  YAML port of 6C 60m Donchian(20) breakout with daily EMA(50)/EMA(200)
+  trend filter. Long when close > prior 20-bar high AND daily trend is up;
+  mirror for short. ATR-based target (3x) and stop (1.5x).
+
+knobs:
+  target_atr_mult: 3.0   # take-profit distance in ATR units from signal-bar close
+  stop_atr_mult: 1.5     # stop distance in ATR units (2:1 R:R at defaults)
+
+entry:
+  long:
+    all:
+      - "close > shift(donchian_upper, 1)"   # close exceeds prior 20-bar high
+      - "daily_ema_50 > daily_ema_200"       # daily trend is up
+  short:
+    all:
+      - "close < shift(donchian_lower, 1)"   # close below prior 20-bar low
+      - "daily_ema_50 < daily_ema_200"       # daily trend is down
+
+exits:
+  stop:
+    long:  "close - stop_atr_mult * atr_14"
+    short: "close + stop_atr_mult * atr_14"
+  target:
+    long:  "close + target_atr_mult * atr_14"
+    short: "close - target_atr_mult * atr_14"
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: false          # overnight holds — thesis is multi-day trending
+  max_holding_bars: 48     # ~2 trading days at 60m
+  use_ofi_resolution: false
+  quantity: 1

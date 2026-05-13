@@ -35,7 +35,7 @@ def test_walkforward_rejects_config_with_both_template_and_signal_module(tmp_pat
     p = tmp_path / "bad.yaml"
     p.write_text(yaml.dump(cfg), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="both 'template' and 'signal_module'"):
+    with pytest.raises(ValueError, match="more than one of"):
         run_walkforward(p)
 
 
@@ -48,7 +48,7 @@ def test_walkforward_rejects_config_with_neither(tmp_path: Path) -> None:
     p = tmp_path / "bad.yaml"
     p.write_text(yaml.dump(cfg), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="must have either"):
+    with pytest.raises(ValueError, match="must have one of"):
         run_walkforward(p)
 
 

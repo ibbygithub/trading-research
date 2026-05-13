@@ -230,4 +230,22 @@ class VWAPReversionV1:
         current_bar: pd.Series,
         instrument: Instrument,
     ) -> ExitDecision:
+        if not self._knobs.mulligan_enabled:
+            return ExitDecision(action="hold", reason="engine handles TP/SL/EOD")
+
+        close = float(current_bar.get("close", float("nan")))
+        vwap = float(current_bar.get("vwap_session", float("nan")))
+        atr = float(current_bar.get("atr_14", float("nan")))
+
+        if not (np.isfinite(close) and np.isfinite(vwap) and np.isfinite(atr) and atr > 0):
+            return ExitDecision(action="hold", reason="engine handles TP/SL/EOD")
+
+        z = (close - vwap) / atr
+        k = self._knobs
+
+        if position.direction == "long" and z < -k.entry_threshold_atr:
+            return ExitDecision(action="scale_in", reason="second_vwap_deviation")
+        if position.direction == "short" and z > k.entry_threshold_atr:
+            return ExitDecision(action="scale_in", reason="second_vwap_deviation")
+
         return ExitDecision(action="hold", reason="engine handles TP/SL/EOD")

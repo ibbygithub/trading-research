@@ -1,0 +1,36 @@
+# 6C Donchian Breakout with Daily EMA Trend Confirmation — v1
+#
+# Quant mentor design, session 34. Exploration mode — not validated.
+#
+# Thesis: 6C is a petro-currency with bimodal regime structure (oil-driven
+# trends interspersed with chop). Donchian(20) breakouts on 60m, filtered
+# by daily EMA(50)/EMA(200) trend alignment, capture the trending regimes
+# while the trend filter screens out chop-period breakouts. Up to 48 hours
+# of holding (multi-day trends); explicit override of EOD-flat default
+# because the thesis itself is multi-day.
+#
+# Reference: docs/analysis/6a-6c-strategy-designs.md
+#
+# Mode: exploration. Run, look at the trade log, see what it does.
+
+strategy_id: 6c-donchian-breakout-ema-v1
+symbol: 6C
+timeframe: 60m
+description: >
+  6C 60m Donchian(20) breakout with daily EMA(50)/EMA(200) trend filter.
+  Long when close > prior 20-bar high AND daily trend is up; mirror for
+  short. ATR-based target (3x) and stop (1.5x). Holds up to 48 bars. EOD
+  flat is disabled — overnight holds are part of the multi-day thesis.
+
+signal_module: trading_research.strategies.fx_donchian_breakout
+signal_params:
+  target_atr_mult: 3.0   # take-profit distance in ATR units
+  stop_atr_mult: 1.5     # stop distance in ATR units; 2:1 reward:risk
+
+backtest:
+  fill_model: next_bar_open
+  same_bar_justification: ""
+  eod_flat: false
+  max_holding_bars: 48   # ~2 trading days at 60m
+  use_ofi_resolution: false
+  quantity: 1
