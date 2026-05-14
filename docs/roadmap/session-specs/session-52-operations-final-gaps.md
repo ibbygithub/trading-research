@@ -1,21 +1,27 @@
 # Session 52 — Part XI Operations + final v1.0 code gaps
 
 **Status:** Spec
-**Effort:** 1 session, chapter authoring + final code gaps + cold-start verification
+**Effort:** 1 session (slightly oversized — Opus), chapter authoring +
+final code gaps + status-CLI surfacings + cold-start verification
 **Model:** Opus 4.7
 **Depends on:** Sessions 41–51
 **Workload:** v1.0 manual completion (final session)
 
 ## Goal
 
-The closing session. Three tasks:
+The closing session. Four tasks:
 
 1. Author Part XI (operations chapters, including the cold-start
    runbook).
 2. Close the remaining v1.0 code gaps: schema migration tooling +
    daily loss limit in BacktestEngine + instrument-loader
    consolidation.
-3. Verify the cold-start runbook works end-to-end on a clean clone.
+3. Close the two small `status`-CLI surfacings that were deferred
+   from sessions 43 and 49: per-instrument growth-rate forecast
+   (Ch 56.5.6) and per-tag feature inventory (Ch 8.6).
+4. Author the one-page quick reference card for the front matter,
+   and verify the cold-start runbook works end-to-end on a clean
+   clone.
 
 After this session, every v1.0 backlog item is closed and the
 manual is complete. The next action is operator review and v1.0
@@ -55,6 +61,23 @@ tag.
   `configs/instruments.yaml` and the legacy nested-schema loader;
   update tests. Removes the dual-store gap from session 40.
 
+### `status`-CLI surfacings — two small additions
+
+- **Per-instrument growth-rate forecast (Ch 56.5.6).** Extend
+  `cli/status.py` to show, for each registered instrument, an
+  estimated days-to-next-pressure-tier based on observed per-month
+  growth in `data/{clean,features}/{symbol}_*.parquet` byte size.
+  Document the heuristic in Ch 56.5.6 (~0.25 page) so the operator
+  knows it is a rolling estimate, not a guarantee.
+- **Per-tag feature inventory (Ch 8.6).** Extend `cli/status.py` to
+  list every feature-set tag found on disk with its latest-build
+  date, row count, and freshness flag against the corresponding
+  CLEAN file. Closes the §8.6 [PARTIAL] marker carried over from
+  session 48's work log.
+
+Both items are pure surfacings — no new state, no new artifacts.
+Each carries a unit test in `tests/cli/test_status.py`.
+
 ### Cold-start verification
 
 On a fresh clone (or a fresh `worktree` to simulate one), follow
@@ -64,8 +87,16 @@ fix it, not the operator's procedure.
 
 ### Manual touch-up
 
-- Strip [GAP] markers from Ch 6.5, 35.2, 54, 56.3. Update TOC gap
-  list to reflect zero outstanding v1.0 items.
+- Strip [GAP] markers from Ch 6.5, 35.2, 54, 56.3, 56.5.6.
+- Strip [PARTIAL] marker from Ch 8.6.
+- Update TOC gap list to reflect zero outstanding v1.0 items. The
+  "Front matter | Quick-start guide" row is stale — `00-quick-start.md`
+  ships [EXISTS] as of session 47; strike the row through.
+- Author the **quick reference card** in the front matter
+  (`docs/manual/00a-quick-reference.md`) — one page listing every CLI
+  command and its one-line purpose. Lift the synopses from Chapter 49
+  §49.0. This is the only Front-Matter component still missing per
+  TOC line 31.
 - Add the v1.0 release section to the front matter.
 
 ## Out of scope
