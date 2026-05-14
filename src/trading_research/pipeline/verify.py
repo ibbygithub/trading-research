@@ -98,9 +98,18 @@ def verify_all(data_root: Path = _DATA_ROOT) -> VerifyResult:
 
     The caller is responsible for printing results and determining exit code.
     """
+    logger.info("verify_start", stage="verify", action="start", outcome="ok")
     result = VerifyResult()
     for layer_name, subdir in [("RAW", "raw"), ("CLEAN", "clean"), ("FEATURES", "features")]:
         result.layers.append(_scan_layer(data_root / subdir, layer_name))
+    logger.info(
+        "verify_complete",
+        stage="verify",
+        action="finish",
+        outcome="ok" if result.clean else "warning",
+        clean=result.clean,
+        layers=len(result.layers),
+    )
     return result
 
 

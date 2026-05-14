@@ -7,6 +7,9 @@ from pathlib import Path
 import pyarrow.parquet as pq
 
 from trading_research.data.manifest import manifest_path_for, read_manifest, is_stale
+from trading_research.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 _DATA_ROOT = Path(__file__).parents[3] / "data"
 
@@ -80,10 +83,12 @@ def _parse_filename(path: Path, layer: str) -> tuple[str, str, str]:
 
 def print_inventory(data_root: Path = _DATA_ROOT) -> None:
     """Print a table of all parquet files in the three-layer data store."""
+    logger.info("inventory_start", stage="inventory", action="start", outcome="ok")
     header = f"{'Layer':<10} {'Symbol':<20} {'TF':<6} {'Adjust':<12} {'Rows':>12} {'Range':<26} {'Size':>8} {'Manifest':<12} {'Stale'}"
     print(header)
     print("-" * len(header))
 
+    total_files = 0
     for layer_name, subdir in [("RAW", "raw"), ("CLEAN", "clean"), ("FEATURES", "features")]:
         layer_dir = data_root / subdir
         if not layer_dir.exists():
@@ -100,3 +105,11 @@ def print_inventory(data_root: Path = _DATA_ROOT) -> None:
             print(
                 f"{layer_name:<10} {symbol:<20} {tf:<6} {adj:<12} {rows:>12} {date_rng:<26} {size:>8} {mstatus:<12} {stale_str}"
             )
+            total_files += 1
+    logger.info(
+        "inventory_complete",
+        stage="inventory",
+        action="finish",
+        outcome="ok",
+        files=total_files,
+    )

@@ -22,3 +22,9 @@ trials:
   compact_after: 180d                   # exploration → compacted archive
   delete_after: 730d                    # exploration: archive → fully deleted
   archive_path: outputs/archive/trials/
+
+logs:
+  # JSONL log files live under logs/{YYYY-MM-DD}/{run_id}.jsonl
+  # (see Chapter 52 §52.3). The date directory is the unit of retention.
+  retention_days: 30                    # date directories older than this are reaped
+  archive_dir: outputs/archive/logs/    # archived before delete (one tarball per day)
