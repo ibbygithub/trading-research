@@ -55,6 +55,9 @@ from trading_research.eval.drawdowns import catalog_drawdowns, time_underwater
 from trading_research.eval.subperiod import subperiod_analysis
 from trading_research.eval.monte_carlo import shuffle_trade_order
 from trading_research.eval.trials import count_trials
+from trading_research.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Public result type
@@ -97,6 +100,14 @@ def generate_report(run_dir: Path, version: str = "v2") -> ReportPaths:
     ReportPaths namedtuple with .report and .data_dictionary Path objects.
     """
     run_dir = Path(run_dir)
+    logger.info(
+        "report_start",
+        stage="report",
+        action="start",
+        outcome="ok",
+        run_dir=str(run_dir),
+        version=version,
+    )
     if not run_dir.is_dir():
         raise FileNotFoundError(f"Run directory not found: {run_dir}")
 
@@ -432,6 +443,14 @@ def generate_report(run_dir: Path, version: str = "v2") -> ReportPaths:
 
     dd_path = generate_data_dictionary(run_dir)
 
+    logger.info(
+        "report_complete",
+        stage="report",
+        action="finish",
+        outcome="ok",
+        report=str(report_path),
+        data_dictionary=str(dd_path),
+    )
     return ReportPaths(report=report_path, data_dictionary=dd_path)
 
 

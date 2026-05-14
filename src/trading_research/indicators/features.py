@@ -88,6 +88,15 @@ def build_features(
     -------
     Path to the written feature parquet.
     """
+    logger.info(
+        "build_features_start",
+        stage="features",
+        action="start",
+        outcome="ok",
+        symbol=symbol,
+        feature_set=feature_set_tag,
+        source=str(price_path),
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if feature_set_config is None:
@@ -238,6 +247,11 @@ def build_features(
 
     logger.info(
         "features_built",
+        stage="features",
+        action="finish",
+        outcome="ok",
+        symbol=symbol,
+        feature_set=feature_set_tag,
         path=str(out_path),
         rows=len(features),
         columns=list(features.columns),

@@ -952,32 +952,31 @@ output format, common errors, see-also.
 
 ## Chapter 52 — Logging & Observability (~ 4 pages)
 
-52.1 Structured logging with structlog **[PARTIAL]** — structlog is
-imported and used in roughly 10 of the platform's 80+ modules
-(`backtest/engine.py`, `backtest/walkforward.py`, `backtest/fills.py`,
-`backtest/multiframe.py`, `cli/sweep.py`, `eval/leaderboard.py`,
-`eval/ranking.py`, `eval/trials.py`, `strategies/mulligan.py`,
-`utils/logging.py`). Hot paths in `data/`, `indicators/`, `pipeline/`,
-`replay/`, `eval/` mostly do not log. The standing rule says "structlog,
-not print()" but enforcement is partial. **[GAP — bring all hot-path
-modules under structlog with a consistent field schema: run_id, symbol,
-timeframe, stage, action, outcome]**
+52.1 Structured logging with structlog **[EXISTS]** — the shared
+field schema (`run_id`, `symbol`, `timeframe`, `stage`, `action`,
+`outcome`, `event`) is declared at
+`src/trading_research/utils/logging.py:SCHEMA_FIELDS`. Hot-path modules
+log at stage boundaries (`data/continuous.py`, `data/validate.py`,
+`data/resample.py`, `data/manifest.py`, `indicators/features.py`,
+`pipeline/verify.py`, `pipeline/inventory.py`, `pipeline/rebuild.py`,
+`eval/report.py`, `eval/bootstrap.py`, `backtest/engine.py`).
 
-52.2 Run IDs and correlation **[PARTIAL]** — backtest runs are tagged
-with a timestamp directory; sweep runs share a `sweep_id`; but there is
-no single `run_id` that flows through all pipeline stages from data
-download → backtest → report. **[GAP — define a run_id field in the
-shared log schema]**
+52.2 Run IDs and correlation **[EXISTS]** — `new_run_id()` and
+`bind_run_id()` in `utils/logging.py` plus the `_init_cli_logging`
+helper in `cli/main.py` mint a `run_id` at every pipeline-driving CLI
+entry. The ID propagates through every downstream module's log events
+automatically via structlog `contextvars`.
 
-52.3 Log file locations **[GAP]** — structlog currently logs to stderr
-only. There is no rotating file logger and no retention policy.
-**[GAP — add a configurable file logger with rotation and a retention
-policy; default 30 days]**
+52.3 Log file locations **[EXISTS]** — JSONL file handler writes to
+`logs/{YYYY-MM-DD}/{run_id}.jsonl`. The date directory is the unit of
+retention; the `logs:` block in `configs/retention.yaml` defines a
+30-day default with archive-then-delete reaping via
+`reap_old_log_dirs()`.
 
-52.4 The observability ladder **[GAP]** — what a v1.0-quality
-observability layer looks like: stage-level event log, per-run summary
-log, errors-only log, plus a `tail-log` CLI subcommand that filters by
-run_id and field.
+52.4 The observability ladder **[EXISTS]** — three layers (per-run
+`summary.json`, per-run JSONL event log, errors-only filter). The
+`trading-research tail-log` CLI filters by `--run-id`, `--field
+key=value`, `--since 1h`, `--errors-only`, with `--json` pass-through.
 
 ## Chapter 53 — Schema Reference (Appendices A–C) (~ 3 pages)
 
@@ -1267,7 +1266,7 @@ required.
 | ~~11.7 / 13.4 / 49.15~~ | ~~`validate-strategy` CLI~~ | **Done — session 49** | 0 | v1.0 |
 | ~~49.16~~ | ~~`status` CLI~~ | **Done — session 49** | 0 | v1.0 |
 | 35.2 | Daily loss limit in BacktestEngine | Hook into engine, fail-fast trade rejection | 0.5 | v1.0 |
-| 52.1–52.4 | Logging coverage + run_id + file logger | Bring all hot-path modules under structlog; consistent fields; rotating file logger; tail-log subcommand | 1 | v1.0 |
+| ~~52.1–52.4~~ | ~~Logging coverage + run_id + file logger~~ | **Done — session 50** | 0 | v1.0 |
 | ~~56.5.3~~ | ~~Storage cleanup CLI subcommands~~ | **Done — session 43** | 0 | v1.0 |
 | 56.5.6 | Per-instrument growth-rate forecast | Document and surface in `status` output | 0.25 | v1.0 |
 | 56.3 | Schema migration runbook | Procedure documentation post-tooling | 0.25 | v1.0 |
@@ -1312,8 +1311,8 @@ The v1.0 backlog, in priority order:
    **Done — session 49**
 3. ~~**Storage management & cleanup** (chapter 56.5: clean CLI subcommands,
    retention policy, growth-rate forecast) — one session.~~ **Done — session 43**
-4. **Logging and observability** (chapter 52: structlog hot-path coverage,
-   run_id, rotating file logger, tail-log) — one session.
+4. ~~**Logging and observability** (chapter 52: structlog hot-path coverage,
+   run_id, rotating file logger, tail-log) — one session.~~ **Done — session 50**
 5. **Cold-start runbook + quick-start guide** (chapters 54, front matter) —
    one session.
 6. **Schema migration tooling and daily loss limit** (chapters 6.5, 35.2,

@@ -28,6 +28,9 @@ import numpy as np
 import pandas as pd
 
 from trading_research.utils import stats as _stats
+from trading_research.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from trading_research.backtest.engine import BacktestResult
@@ -64,7 +67,23 @@ def bootstrap_summary(
     Returns all-NaN CIs when trade count < 10 (too few to resample).
     """
     trades = result.trades
+    logger.info(
+        "bootstrap_start",
+        stage="bootstrap",
+        action="start",
+        outcome="ok",
+        n_trades=len(trades),
+        n_samples=n_samples,
+    )
     if trades.empty or len(trades) < 10:
+        logger.info(
+            "bootstrap_skipped",
+            stage="bootstrap",
+            action="finish",
+            outcome="warning",
+            reason="too_few_trades",
+            n_trades=len(trades),
+        )
         return {f"{m}_ci": (float("nan"), float("nan")) for m in _METRICS_TO_BOOTSTRAP}
 
     rng = np.random.default_rng(seed)
@@ -105,6 +124,15 @@ def bootstrap_summary(
                 float(np.percentile(finite, 95)),
             )
 
+    logger.info(
+        "bootstrap_complete",
+        stage="bootstrap",
+        action="finish",
+        outcome="ok",
+        n_trades=n_trades,
+        n_samples=n_samples,
+        metrics=list(cis.keys()),
+    )
     return cis
 
 

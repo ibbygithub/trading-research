@@ -9,17 +9,50 @@ Usage:
     uv run trading-research inventory
     uv run trading-research replay --symbol ZN [--from YYYY-MM-DD] [--to YYYY-MM-DD]
     uv run trading-research backtest --strategy configs/strategies/example.yaml
+    uv run trading-research tail-log [--run-id ID] [--field key=value] [--since 1h] [--errors-only]
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
+import structlog
 import typer
 
 from trading_research.core.instruments import InstrumentRegistry
+from trading_research.utils.logging import (
+    configure as _configure_logging,
+)
+from trading_research.utils.logging import (
+    configure_file_logging as _configure_file_logging,
+)
+from trading_research.utils.logging import (
+    new_run_id as _new_run_id,
+)
+
+
+def _init_cli_logging(stage: str, **fields: object) -> tuple[str, Path | None]:
+    """Bootstrap logging for a pipeline-driving CLI invocation.
+
+    Generates a run_id, configures stderr + JSONL file handlers, and binds
+    the schema fields into structlog contextvars so every downstream log
+    event carries them automatically. Skips file logging under pytest.
+    """
+    _configure_logging()
+    run_id = _new_run_id()
+    log_path: Path | None = None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        try:
+            log_path = _configure_file_logging(run_id)
+        except OSError:
+            log_path = None
+    bind_kwargs: dict[str, object] = {"run_id": run_id, "stage": stage}
+    bind_kwargs.update({k: v for k, v in fields.items() if v is not None})
+    structlog.contextvars.bind_contextvars(**bind_kwargs)
+    return run_id, log_path
 
 app = typer.Typer(
     name="trading-research",
@@ -32,15 +65,18 @@ rebuild_app = typer.Typer(help="Rebuild CLEAN or FEATURES data from sources.", n
 app.add_typer(rebuild_app, name="rebuild")
 
 from trading_research.cli.clean import clean_app
+
 app.add_typer(clean_app, name="clean")
 
-from trading_research.cli.validate_strategy import validate_strategy_command
-from trading_research.cli.status import status_command
 from trading_research.cli.migrate_trials import migrate_trials_command
+from trading_research.cli.status import status_command
+from trading_research.cli.tail_log import tail_log_command
+from trading_research.cli.validate_strategy import validate_strategy_command
 
 app.command(name="validate-strategy")(validate_strategy_command)
 app.command(name="status")(status_command)
 app.command(name="migrate-trials")(migrate_trials_command)
+app.command(name="tail-log")(tail_log_command)
 
 _DATA_ROOT = Path(__file__).parents[3] / "data"
 
@@ -52,13 +88,13 @@ _DATA_ROOT = Path(__file__).parents[3] / "data"
 
 @app.command()
 def verify(
-    data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
+    data_root: Annotated[Path | None, typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Walk all manifests in data/ and report staleness.
 
     Exit code 0 = all OK. Exit code 1 = stale or missing manifests.
     """
-    from trading_research.pipeline.verify import verify_all, print_verify_result
+    from trading_research.pipeline.verify import print_verify_result, verify_all
 
     root = data_root or _DATA_ROOT
     result = verify_all(root)
@@ -76,7 +112,7 @@ def verify(
 @app.command(name="backfill-manifests")
 def backfill_manifests(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Print what would be written; don't write.")] = False,
-    data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
+    data_root: Annotated[Path | None, typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Write manifest sidecars for data files that predate the manifest convention.
 
@@ -104,7 +140,7 @@ def backfill_manifests(
 @rebuild_app.command(name="clean")
 def rebuild_clean(
     symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E).")],
-    data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
+    data_root: Annotated[Path | None, typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Rebuild all CLEAN files for SYMBOL from cached RAW contracts.
 
@@ -113,6 +149,8 @@ def rebuild_clean(
     5m, 15m, 60m, 240m, 1D.
     """
     from trading_research.pipeline.rebuild import rebuild_clean as _rebuild_clean
+
+    _init_cli_logging("rebuild_clean", symbol=symbol)
 
     root = data_root or _DATA_ROOT
     try:
@@ -139,13 +177,15 @@ def rebuild_clean(
 def rebuild_features(
     symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E).")],
     feature_set: Annotated[str, typer.Option("--set", help="Feature set tag.")] = "base-v1",
-    data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
+    data_root: Annotated[Path | None, typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Rebuild FEATURES files for SYMBOL using the named feature set.
 
     Example: uv run trading-research rebuild features --symbol 6E --set base-v1
     """
     from trading_research.pipeline.rebuild import rebuild_features as _rebuild_features
+
+    _init_cli_logging("rebuild_features", symbol=symbol, feature_set=feature_set)
 
     root = data_root or _DATA_ROOT
     try:
@@ -175,10 +215,10 @@ def rebuild_features(
 def pipeline(
     symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E, ZN).")],
     feature_set: Annotated[str, typer.Option("--set", help="Feature set tag.")] = "base-v1",
-    start: Annotated[Optional[str], typer.Option(help="Start date YYYY-MM-DD (default: full history).")] = None,
-    end: Annotated[Optional[str], typer.Option(help="End date YYYY-MM-DD (default: today).")] = None,
+    start: Annotated[str | None, typer.Option(help="Start date YYYY-MM-DD (default: full history).")] = None,
+    end: Annotated[str | None, typer.Option(help="End date YYYY-MM-DD (default: today).")] = None,
     skip_validate: Annotated[bool, typer.Option("--skip-validate", help="Skip the data quality gate.")] = False,
-    data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
+    data_root: Annotated[Path | None, typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Run the full data pipeline for SYMBOL.
 
@@ -204,8 +244,12 @@ def pipeline(
     from trading_research.core.instruments import InstrumentRegistry
     from trading_research.pipeline.rebuild import (
         rebuild_clean as _rebuild_clean,
+    )
+    from trading_research.pipeline.rebuild import (
         rebuild_features as _rebuild_features,
     )
+
+    _init_cli_logging("pipeline", symbol=symbol, feature_set=feature_set)
 
     root = data_root or _DATA_ROOT
 
@@ -259,8 +303,9 @@ def pipeline(
         typer.echo(f"  Validating: {clean_1m_path.name}")
 
         try:
-            from trading_research.data.validate import validate_bar_dataset
             import pyarrow.parquet as pq
+
+            from trading_research.data.validate import validate_bar_dataset
 
             tbl = pq.read_table(clean_1m_path)
             import pandas as pd
@@ -350,7 +395,7 @@ def pipeline(
 
 @app.command()
 def inventory(
-    data_root: Annotated[Optional[Path], typer.Option(help="Override data/ root.")] = None,
+    data_root: Annotated[Path | None, typer.Option(help="Override data/ root.")] = None,
 ) -> None:
     """Print a table of all data files with sizes, row counts, and manifest status."""
     from trading_research.pipeline.inventory import print_inventory
@@ -367,9 +412,9 @@ def inventory(
 @app.command()
 def replay(
     symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E).")],
-    from_date: Annotated[Optional[str], typer.Option("--from", help="Window start YYYY-MM-DD.")] = None,
-    to_date: Annotated[Optional[str], typer.Option("--to", help="Window end YYYY-MM-DD.")] = None,
-    trades: Annotated[Optional[Path], typer.Option(help="Path to a trades JSON log.")] = None,
+    from_date: Annotated[str | None, typer.Option("--from", help="Window start YYYY-MM-DD.")] = None,
+    to_date: Annotated[str | None, typer.Option("--to", help="Window end YYYY-MM-DD.")] = None,
+    trades: Annotated[Path | None, typer.Option(help="Path to a trades JSON log.")] = None,
     port: Annotated[int, typer.Option(help="Port for the Dash dev server.")] = 8050,
 ) -> None:
     """Open the visual forensic cockpit for SYMBOL in a browser.
@@ -382,7 +427,7 @@ def replay(
     from trading_research.replay.app import build_app
     from trading_research.replay.data import DataNotFoundError
 
-    today = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+    today = datetime.now(tz=UTC).replace(tzinfo=None)
 
     try:
         from_dt = datetime.fromisoformat(from_date) if from_date else today - timedelta(days=90)
@@ -413,9 +458,9 @@ def replay(
 @app.command()
 def backtest(
     strategy: Annotated[Path, typer.Option(help="Path to strategy YAML config.")],
-    from_date: Annotated[Optional[str], typer.Option("--from", help="Start date YYYY-MM-DD.")] = None,
-    to_date: Annotated[Optional[str], typer.Option("--to", help="End date YYYY-MM-DD.")] = None,
-    out: Annotated[Optional[Path], typer.Option(help="Output root (default: runs/).")] = None,
+    from_date: Annotated[str | None, typer.Option("--from", help="Start date YYYY-MM-DD.")] = None,
+    to_date: Annotated[str | None, typer.Option("--to", help="End date YYYY-MM-DD.")] = None,
+    out: Annotated[Path | None, typer.Option(help="Output root (default: runs/).")] = None,
 ) -> None:
     """Run a backtest from a strategy YAML config.
 
@@ -442,7 +487,7 @@ def backtest(
     import importlib
     import json
     import math
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     import yaml
 
@@ -451,7 +496,9 @@ def backtest(
     from trading_research.backtest.signals import SignalFrame
     from trading_research.data.instruments import load_instrument
     from trading_research.eval.bootstrap import bootstrap_summary, format_with_ci
-    from trading_research.eval.summary import compute_summary, format_summary
+    from trading_research.eval.summary import compute_summary
+
+    _init_cli_logging("backtest", strategy=str(strategy))
 
     # --- Load strategy config ---
     if not strategy.is_file():
@@ -515,6 +562,7 @@ def backtest(
     data_root = _DATA_ROOT
 
     import pandas as pd
+
     from trading_research.replay.data import DataNotFoundError, _find_parquet
 
     feat_dir = data_root / "features"
@@ -556,8 +604,9 @@ def backtest(
         # Join higher-timeframe features if requested (session 37).
         higher_timeframes = cfg_raw.get("higher_timeframes", [])
         for htf in higher_timeframes:
-            from trading_research.replay.data import DataNotFoundError, _find_parquet
             import pandas as _pd
+
+            from trading_research.replay.data import DataNotFoundError, _find_parquet
             try:
                 htf_path = _find_parquet(
                     feat_dir,
@@ -592,8 +641,9 @@ def backtest(
     elif template_name:
         # Registered StrategyTemplate — import its module to trigger @register_template.
         import importlib as _il
-        from trading_research.core.templates import _GLOBAL_REGISTRY
+
         from trading_research.backtest.walkforward import _signals_to_dataframe
+        from trading_research.core.templates import _GLOBAL_REGISTRY
 
         template_module = cfg_raw.get("template_module")
         if template_module:
@@ -655,7 +705,7 @@ def backtest(
     typer.echo(f"Completed: {len(result.trades)} trades.")
 
     # --- Write outputs ---
-    run_ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d-%H-%M")
+    run_ts = datetime.now(tz=UTC).strftime("%Y-%m-%d-%H-%M")
     out_root = out or (Path(__file__).parents[3] / "runs")
     run_dir = out_root / strategy_id / run_ts
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -688,10 +738,11 @@ def backtest(
     typer.echo(f"Summary written: {summary_path}")
 
     # --- Compute DSR for the summary output ---
-    from trading_research.eval.trials import record_trial, count_trials
-    from trading_research.eval.stats import deflated_sharpe_ratio
     import numpy as np
     from scipy import stats as scipy_stats
+
+    from trading_research.eval.stats import deflated_sharpe_ratio
+    from trading_research.eval.trials import count_trials, record_trial
 
     n_trials = count_trials(runs_root=out_root, strategy_id=strategy_id)
     net_pnl = result.trades["net_pnl_usd"].values.astype(float)
@@ -744,8 +795,8 @@ def backtest(
 @app.command()
 def report(
     run_id: Annotated[str, typer.Argument(help="Run ID (directory under runs/, e.g. zn-macd-pullback-v1).")],
-    ts: Annotated[Optional[str], typer.Option("--ts", help="Timestamp subdirectory (default: latest).")] = None,
-    out: Annotated[Optional[Path], typer.Option(help="Override runs/ root directory.")] = None,
+    ts: Annotated[str | None, typer.Option("--ts", help="Timestamp subdirectory (default: latest).")] = None,
+    out: Annotated[Path | None, typer.Option(help="Override runs/ root directory.")] = None,
 ) -> None:
     """Generate the Trader's Desk HTML report for a backtest run.
 
@@ -758,8 +809,10 @@ def report(
     Example:
         uv run trading-research report zn-macd-pullback-v1
     """
-    from trading_research.eval.report import generate_report
     from trading_research.eval.pipeline_integrity import generate_pipeline_integrity_report
+    from trading_research.eval.report import generate_report
+
+    _init_cli_logging("report", run_id_arg=run_id)
 
     runs_root = out or (Path(__file__).parents[3] / "runs")
     run_root = runs_root / run_id
@@ -811,8 +864,8 @@ def walkforward(
     n_folds: Annotated[int, typer.Option(help="Number of contiguous folds.")] = 10,
     gap: Annotated[int, typer.Option(help="Bars purged between train end and test start.")] = 100,
     embargo: Annotated[int, typer.Option(help="Bars embargoed after test end.")] = 50,
-    out: Annotated[Optional[Path], typer.Option(help="Output root (default: runs/).")] = None,
-    trial_group: Annotated[Optional[str], typer.Option(help="Trial group tag for deflated Sharpe.")] = None,
+    out: Annotated[Path | None, typer.Option(help="Output root (default: runs/).")] = None,
+    trial_group: Annotated[str | None, typer.Option(help="Trial group tag for deflated Sharpe.")] = None,
 ) -> None:
     """Run a purged walk-forward robustness test.
 
@@ -826,14 +879,15 @@ def walkforward(
     Example:
         uv run trading-research walkforward --strategy configs/strategies/zn_macd_pullback.yaml
     """
-    import json
     import math
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     import yaml
 
     from trading_research.backtest.walkforward import run_walkforward, write_walkforward_outputs
     from trading_research.eval.trials import record_trial
+
+    _init_cli_logging("walkforward", strategy=str(strategy), n_folds=n_folds)
 
     if not strategy.is_file():
         typer.echo(f"ERROR: strategy file not found: {strategy}", err=True)
@@ -843,7 +897,7 @@ def walkforward(
     strategy_id = cfg_raw["strategy_id"]
 
     out_root = out or (Path(__file__).parents[3] / "runs")
-    run_ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d-%H-%M")
+    run_ts = datetime.now(tz=UTC).strftime("%Y-%m-%d-%H-%M")
     run_dir = out_root / strategy_id / run_ts
 
     typer.echo(f"Walk-forward: {strategy_id}  folds={n_folds}  gap={gap}  embargo={embargo}")
@@ -916,10 +970,10 @@ def walkforward(
 @app.command()
 def stationarity(
     symbol: Annotated[str, typer.Option(help="Instrument symbol (e.g. 6E, ZN).")],
-    start: Annotated[Optional[str], typer.Option(help="Start date YYYY-MM-DD.")] = None,
-    end: Annotated[Optional[str], typer.Option(help="End date YYYY-MM-DD.")] = None,
+    start: Annotated[str | None, typer.Option(help="Start date YYYY-MM-DD.")] = None,
+    end: Annotated[str | None, typer.Option(help="End date YYYY-MM-DD.")] = None,
     timeframes: Annotated[str, typer.Option(help="Comma-separated timeframes to test.")] = "1m,5m,15m",
-    out: Annotated[Optional[Path], typer.Option(help="Override runs/ root.")] = None,
+    out: Annotated[Path | None, typer.Option(help="Override runs/ root.")] = None,
 ) -> None:
     """Run the stationarity suite (ADF, Hurst, OU) on CLEAN 1m bars for SYMBOL.
 
@@ -929,7 +983,7 @@ def stationarity(
         uv run trading-research stationarity --symbol ZN --start 2024-01-01 --end 2024-12-31
     """
     import glob as _glob
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     import pandas as pd
 
@@ -991,7 +1045,7 @@ def stationarity(
 
     # --- Write outputs ---
     runs_root = out or (Path(__file__).parents[3] / "runs")
-    run_ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M")
+    run_ts = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M")
     output_dir = runs_root / "stationarity" / symbol / run_ts
     parquet_path, json_path, md_path = write_report(report, output_dir)
 
@@ -1022,13 +1076,14 @@ def portfolio(
     )
 ):
     """Generate a multi-strategy portfolio analytics report."""
-    from trading_research.eval.portfolio_report import generate_portfolio_report
     import time
-    
+
+    from trading_research.eval.portfolio_report import generate_portfolio_report
+
     if output_dir is None:
         run_ts = time.strftime("%Y-%m-%d-%H-%M-%S")
         output_dir = Path("runs/portfolio") / run_ts
-        
+
     try:
         report_path = generate_portfolio_report(run_ids, output_dir)
         typer.secho(f"Success! Portfolio report generated at {report_path}", fg=typer.colors.GREEN)
@@ -1045,10 +1100,10 @@ def portfolio(
 def sweep(
     strategy: Annotated[Path, typer.Option(help="Path to base strategy YAML config.")],
     param: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--param", help="'key=v1,v2,v3' — can be repeated for multiple params."),
     ] = None,
-    out: Annotated[Optional[Path], typer.Option(help="Output root (default: runs/).")] = None,
+    out: Annotated[Path | None, typer.Option(help="Output root (default: runs/).")] = None,
 ) -> None:
     """Run a parameter grid sweep over a strategy config.
 
@@ -1066,6 +1121,8 @@ def sweep(
         # Produces 3 × 3 = 9 exploration trials.
     """
     from trading_research.cli.sweep import expand_params, run_sweep
+
+    _init_cli_logging("sweep", strategy=str(strategy))
 
     param_specs: list[str] = param or []
 
@@ -1116,16 +1173,16 @@ def sweep(
 @app.command()
 def leaderboard(
     filter: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option("--filter", help="'key=value' filter, repeatable (AND logic)."),
     ] = None,
     sort: Annotated[str, typer.Option(help="Metric to sort by (default: calmar).")] = "calmar",
     ascending: Annotated[bool, typer.Option("--ascending", help="Sort ascending (default: descending).")] = False,
     html_out: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--html-out", help="Write HTML leaderboard to this path."),
     ] = None,
-    out: Annotated[Optional[Path], typer.Option(help="Override runs/ root.")] = None,
+    out: Annotated[Path | None, typer.Option(help="Override runs/ root.")] = None,
 ) -> None:
     """Show a ranked leaderboard of all recorded trials.
 
